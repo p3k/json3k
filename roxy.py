@@ -15,8 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging, gzip, cStringIO, cgi, webapp2
-import simplejson as json
+import logging, gzip, cStringIO, cgi, webapp2, json
 
 from datetime import datetime, timedelta
 
