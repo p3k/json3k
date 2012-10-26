@@ -15,8 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import webapp2
+
 from ferris import Referrer, datetime, timedelta, db
 
-records = Referrer.all()
-records.filter('date <', datetime.now() - timedelta(days = 2))
-db.delete(records)
+class MainHandler(webapp2.RequestHandler):
+   def get(self):
+     records = Referrer.all()
+     records.filter('date <', datetime.now() - timedelta(days = 2))
+     db.delete(records)
+
+app = webapp2.WSGIApplication([('/cron/referrers', MainHandler)], debug = True)

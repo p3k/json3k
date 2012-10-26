@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging, gzip, cStringIO, cgi
+import logging, gzip, cStringIO, cgi, webapp2
 import simplejson as json
 
 from datetime import datetime, timedelta
@@ -24,7 +24,7 @@ from google.appengine.api import urlfetch
 from google.appengine.api import memcache
 
 from google.appengine.ext import db
-from google.appengine.ext import webapp
+#from google.appengine.ext import webapp2
 
 from google.appengine.ext.webapp.util import run_wsgi_app
 
@@ -40,7 +40,7 @@ class HttpError(Exception):
    def __str__(self):
       return repr(self.response.status_code)
    
-class MainHandler(webapp.RequestHandler):
+class MainHandler(webapp2.RequestHandler):
    def get(self):
       self.response.headers['Content-Type'] = 'text/javascript'
       self.response.headers['Access-Control-Allow-Origin'] = '*'
@@ -52,14 +52,16 @@ class MainHandler(webapp.RequestHandler):
          headers = {}
          content = ''
          try:
-            resource = Resource(key_name = url)
+            # Avoiding the expensive datastore
             #resource = Resource.get_by_key_name(url) or \
             #           Resource(key_name = url)
+            resource = Resource(key_name = url)
             if resource.content is None or datetime.now() - \
                   resource.date > timedelta(seconds = TTL):
                response = urlfetch.fetch(url, headers = {'If-None-Match': \
                      resource.etag, 'Accept-Encoding': 'gzip'})
                headers.update(response.headers)
+               headers['X-Roxy-Url'] = response.final_url or url
                if headers.get('content-encoding') == 'gzip':
                   io = cStringIO.StringIO(response.content)
                   file = gzip.GzipFile(fileobj = io, mode = 'rb')
@@ -83,6 +85,7 @@ class MainHandler(webapp.RequestHandler):
                   resource.content = db.Text(content)
                   resource.etag = headers.get('etag')
                   resource.headers = json.dumps(headers)
+                  # Avoiding the expensive datastore
                   #resource.put()
                   self.response.headers['X-Roxy-Debug'] = 'Fetched from URL'
                elif response.status_code != 304:
@@ -123,10 +126,4 @@ class MainHandler(webapp.RequestHandler):
          result = io.getvalue()
       self.response.out.write(result)
 
-app = webapp.WSGIApplication([('/roxy', MainHandler)], debug = True)
-
-def main():
-   run_wsgi_app(app)
-
-if __name__ == '__main__':
-   main()
+app = webapp2.WSGIApplication([('/roxy', MainHandler)], debug = True)

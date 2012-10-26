@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
+import logging, webapp2
 import simplejson as json
 
 from datetime import datetime, timedelta
@@ -24,7 +24,6 @@ from urlparse import urlparse
 from google.appengine.api import memcache
 
 from google.appengine.ext import db
-from google.appengine.ext import webapp
 
 from google.appengine.ext.webapp.util import run_wsgi_app
 
@@ -33,7 +32,7 @@ class Referrer(db.Model):
    hits = db.IntegerProperty(default = 0)
    date = db.DateTimeProperty(auto_now = True)
 
-class MainHandler(webapp.RequestHandler):
+class MainHandler(webapp2.RequestHandler):
    def get(self):
       self.response.headers['Content-Type'] = 'text/javascript'
       group = self.request.get('group')
@@ -90,10 +89,4 @@ class MainHandler(webapp.RequestHandler):
       else:
          self.response.set_status(400)
       
-app = webapp.WSGIApplication([('/ferris', MainHandler)], debug = True)
-
-def main():
-   run_wsgi_app(app)
-
-if __name__ == '__main__':
-   main()
+app = webapp2.WSGIApplication([('/ferris', MainHandler)], debug = True)
