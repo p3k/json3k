@@ -50,7 +50,7 @@ class MainHandler(webapp2.RequestHandler):
                if referrer.hits % 10 == 0:
                   referrer.put()
                memcache.set(url, referrer, namespace = 'ferris')
-               self.response.headers['X-Ferris-Hits'] = referrer.hits
+               self.response.headers['X-Ferris-Hits'] = str(referrer.hits)
                self.response.set_status(201)
             else:
                result = memcache.get('referrers', namespace = 'ferris')
