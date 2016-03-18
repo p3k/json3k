@@ -1,5 +1,5 @@
 application: p3k-services
-version: 4
+version: 5
 runtime: python27
 api_version: 1
 threadsafe: true
@@ -15,4 +15,3 @@ handlers:
 - url: /cron/.+
   script: cron.app
   login: admin
-  

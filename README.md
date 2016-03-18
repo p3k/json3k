@@ -3,6 +3,8 @@ p3k.org’s JSONP Services
 
 For Google AppEngine.
 
+`gae-server --port 8081 --admin_port 8082 ./app.yaml`
+
 License
 -------
 
