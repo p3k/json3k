@@ -148,4 +148,4 @@ class MainHandler(webapp2.RequestHandler):
 
       self.response.out.write(result)
 
-app = webapp2.WSGIApplication([('/roxy', MainHandler)], debug=True)
+app = webapp2.WSGIApplication([('/roxy', MainHandler)], debug=False)

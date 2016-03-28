@@ -87,5 +87,5 @@ class MainHandler(webapp2.RequestHandler):
                raise
       else:
          self.response.set_status(400)
-      
-app = webapp2.WSGIApplication([('/ferris', MainHandler)], debug = True)
+
+app = webapp2.WSGIApplication([('/ferris', MainHandler)], debug=False)

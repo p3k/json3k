@@ -25,4 +25,4 @@ class MainHandler(webapp2.RequestHandler):
      records.filter('date <', datetime.now() - timedelta(days = 2))
      db.delete(records)
 
-app = webapp2.WSGIApplication([('/cron/referrers', MainHandler)], debug = True)
+app = webapp2.WSGIApplication([('/cron/referrers', MainHandler)], debug=False)
