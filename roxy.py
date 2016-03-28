@@ -21,7 +21,6 @@ from datetime import datetime, timedelta
 
 from google.appengine.api import urlfetch
 from google.appengine.api import memcache
-
 from google.appengine.ext import ndb
 
 class Resource(ndb.Model):
@@ -131,7 +130,10 @@ class MainHandler(webapp2.RequestHandler):
             'content': resource.content
          })
 
-         memcache.set(url, result, TTL)
+         ## Memcache does not allow values > 1000000 bytes in length
+         if len(result) < 1000000:
+            memcache.set(url, result, TTL)
+
       else:
          self.response.headers['X-Roxy-Debug'] = 'Fetched from Memcache'
 
