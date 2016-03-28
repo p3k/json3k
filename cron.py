@@ -21,8 +21,8 @@ from ferris import Referrer, datetime, timedelta, db
 
 class MainHandler(webapp2.RequestHandler):
    def get(self):
-     records = Referrer.all()
-     records.filter('date <', datetime.now() - timedelta(days = 2))
-     db.delete(records)
+      records = Referrer.all()
+      records.filter('date <', datetime.now() - timedelta(days=2))
+      db.delete(records)
 
 app = webapp2.WSGIApplication([('/cron/referrers', MainHandler)], debug=False)
