@@ -1,3 +1,5 @@
 blacklist:
-- subnet: 0.0.0.1
-  description: Test pls ignore
+- subnet: 212.45.46.32
+  description: Heavy hitter
+- subnet: 79.100.247.54
+  description: Heavy hitter
