@@ -85,17 +85,20 @@ class MainHandler(webapp2.RequestHandler):
 
                content_type = response.headers.get('content-type')
 
-               if content_type.startswith('text/') or \
-                     content_type.startswith('application/xml') or \
-                     content_type.startswith('application/rss+xml'):
+               if content_type:
+                  if content_type.startswith('text/') or \
+                        content_type.startswith('application/xml') or \
+                        content_type.startswith('application/rss+xml'):
 
-                  try:
-                     content = content.decode('utf-8-sig')
-                  except UnicodeDecodeError:
-                     content = content.decode('iso-8859-1')
-                  except:
-                     raise
+                     try:
+                        content = content.decode('utf-8-sig')
+                     except UnicodeDecodeError:
+                        content = content.decode('iso-8859-1')
+                     except:
+                        raise
 
+                  else:
+                     content = content.encode('base64')
                else:
                   content = content.encode('base64')
 
