@@ -56,6 +56,7 @@ class MainHandler(webapp2.RequestHandler):
 
          cookie = self.request.get('cookie')
          user_agent = self.request.get('ua')
+         referrer = self.request.get('ref')
 
          try:
             resource = Resource(parent=ndb.Key('URL', url))
@@ -67,7 +68,8 @@ class MainHandler(webapp2.RequestHandler):
                   'Accept-Encoding': 'gzip',
                   'If-None-Match': resource.etag,
                   'Cookie': cookie,
-                  'User-Agent': user_agent
+                  'User-Agent': user_agent,
+                  'Referer': referrer
                }, follow_redirects=True)
 
                headers.update(response.headers)
