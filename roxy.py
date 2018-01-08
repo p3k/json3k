@@ -18,6 +18,7 @@
 import logging, gzip, cStringIO, cgi, webapp2, json
 
 from datetime import datetime, timedelta
+from httplib import responses
 
 from google.appengine.api import urlfetch
 from google.appengine.api import memcache
@@ -114,22 +115,17 @@ class MainHandler(webapp2.RequestHandler):
                   self.response.headers['X-Roxy-Debug'] = 'Fetched from Datastore'
 
          except Exception, ex:
-
-            if callback:
-
-               if type(ex) == HttpError:
-                  headers['error'] = ex.response.status_code + 0 # FIXME: Without the +0 we get an array?!?
-                  headers['message'] = cgi.escape(content)
-               else:
-                  headers['error'] = 500
-                  headers['message'] = ex.__str__()
-
-               resource = Resource()
-               resource.headers = json.dumps(headers)
-               logging.error(resource.headers)
-               resource.date = datetime.now()
+            if type(ex) == HttpError:
+              headers['X-Roxy-Status'] = ex.response.status_code
+              headers['X-Roxy-Message'] = responses[ex.response.status_code]
             else:
-               raise
+              headers['X-Roxy-Status'] = 500
+              headers['X-Roxy-Message'] = ex.__str__()
+
+            resource = Resource()
+            resource.headers = json.dumps(headers)
+            logging.error(resource.headers)
+            resource.date = datetime.now()
 
          result = json.dumps({
             'headers': json.loads(resource.headers),
