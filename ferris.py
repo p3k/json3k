@@ -31,7 +31,7 @@ class Referrer(db.Model):
 
 class MainHandler(webapp2.RequestHandler):
    def get(self):
-      self.response.headers['Content-Type'] = 'text/javascript'
+      self.response.headers['Content-Type'] = 'application/json'
       group = self.request.get('group')
       if (group):
          url = self.request.get('url')
@@ -74,6 +74,7 @@ class MainHandler(webapp2.RequestHandler):
                   self.response.out.write(result)
          except Exception, ex:
             if callback:
+              self.response.headers['Content-Type'] = 'application/javascript'
               self.response.out.write('%s(%s)' % (callback, \
                   json.dumps({'status': 500, 'error': ex.__str__()})))
             else:

@@ -42,7 +42,7 @@ class MainHandler(webapp2.RequestHandler):
    def get(self):
       TTL = 60
 
-      self.response.headers['Content-Type'] = 'text/javascript'
+      self.response.headers['Content-Type'] = 'application/json'
       self.response.headers['Access-Control-Allow-Origin'] = '*'
 
       callback = self.request.get('callback')
@@ -143,6 +143,7 @@ class MainHandler(webapp2.RequestHandler):
          self.response.headers['X-Roxy-Debug'] = 'Fetched from Memcache'
 
       if callback:
+         self.response.headers['Content-Type'] = 'application/javascript'
          result = '%s(%s)' % (callback, result)
 
       if self.request.get('Accept-Encoding') == 'gzip':
