@@ -32,7 +32,10 @@ class Referrer(db.Model):
 class MainHandler(webapp2.RequestHandler):
    def get(self):
       self.response.headers['Content-Type'] = 'application/json'
+      self.response.headers['Access-Control-Allow-Origin'] = '*'
+
       group = self.request.get('group')
+
       if (group):
          url = self.request.get('url')
          callback = self.request.get('callback')
