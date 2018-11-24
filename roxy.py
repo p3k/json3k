@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging, gzip, cStringIO, cgi, webapp2, json
+import cgi, cStringIO, gzip, json, logging, webapp2, urllib
 
 from datetime import datetime, timedelta
 from httplib import responses
@@ -31,7 +31,6 @@ class Resource(ndb.Model):
    content = ndb.TextProperty()
 
 class HttpError(Exception):
-
    def __init__(self, response):
       self.response = response
 
@@ -39,7 +38,6 @@ class HttpError(Exception):
       return repr(self.response.status_code)
 
 class MainHandler(webapp2.RequestHandler):
-
    def get(self):
       TTL = 60
 
@@ -58,61 +56,59 @@ class MainHandler(webapp2.RequestHandler):
          cookie = self.request.get('cookie')
          user_agent = self.request.get('ua')
          referrer = self.request.get('ref')
+         resource = Resource()
 
          try:
-            resource = Resource(parent=ndb.Key('URL', url))
+            encoded_url = urllib.quote(url.encode('utf8'), safe='%/:=&?~#+!$,;\'@()*[]')
 
-            if resource.content is None or datetime.now() - \
-                  resource.date > timedelta(seconds=TTL):
+            response = urlfetch.fetch(encoded_url, headers={
+              'Accept-Encoding': 'gzip',
+              'If-None-Match': resource.etag,
+              'Cookie': cookie,
+              'User-Agent': user_agent,
+              'Referer': referrer
+            }, follow_redirects=True)
 
-               response = urlfetch.fetch(url, headers={
-                  'Accept-Encoding': 'gzip',
-                  'If-None-Match': resource.etag,
-                  'Cookie': cookie,
-                  'User-Agent': user_agent,
-                  'Referer': referrer
-               }, follow_redirects=True)
+            headers.update(response.headers)
+            headers['X-Roxy-Url'] = response.final_url or url
 
-               headers.update(response.headers)
-               headers['X-Roxy-Url'] = response.final_url or url
+            if headers.get('content-encoding') == 'gzip':
+              io = cStringIO.StringIO(response.content)
+              file = gzip.GzipFile(fileobj=io, mode='rb')
+              content = file.read()
+              file.close()
+            else:
+              content = response.content
 
-               if headers.get('content-encoding') == 'gzip':
-                  io = cStringIO.StringIO(response.content)
-                  file = gzip.GzipFile(fileobj=io, mode='rb')
-                  content = file.read()
-                  file.close()
-               else:
-                  content = response.content
+            content_type = response.headers.get('content-type')
 
-               content_type = response.headers.get('content-type')
+            if content_type:
+              if content_type.startswith('text/') or \
+                    content_type.startswith('application/xml') or \
+                    content_type.startswith('application/rss+xml') or \
+                    content_type.startswith('application/x-rss+xml'):
 
-               if content_type:
-                  if content_type.startswith('text/') or \
-                        content_type.startswith('application/xml') or \
-                        content_type.startswith('application/rss+xml') or \
-                        content_type.startswith('application/x-rss+xml'):
+                  try:
+                    content = content.decode('utf-8-sig')
+                  except UnicodeDecodeError:
+                    content = content.decode('iso-8859-1')
+                  except:
+                    raise
 
-                     try:
-                        content = content.decode('utf-8-sig')
-                     except UnicodeDecodeError:
-                        content = content.decode('iso-8859-1')
-                     except:
-                        raise
-
-                  else:
-                     content = content.encode('base64')
-               else:
+              else:
                   content = content.encode('base64')
+            else:
+              content = content.encode('base64')
 
-               if response.status_code == 200:
-                  resource.content = content
-                  resource.etag = headers.get('etag')
-                  resource.headers = json.dumps(headers)
-                  self.response.headers['X-Roxy-Debug'] = 'Fetched from URL'
-               elif response.status_code != 304:
-                  raise HttpError, response
-               else:
-                  self.response.headers['X-Roxy-Debug'] = 'Fetched from Datastore'
+            if response.status_code == 200:
+              resource.content = content
+              resource.etag = headers.get('etag')
+              resource.headers = json.dumps(headers)
+              self.response.headers['X-Roxy-Debug'] = 'Fetched from URL'
+            elif response.status_code != 304:
+              raise HttpError, response
+            else:
+              self.response.headers['X-Roxy-Debug'] = 'Fetched from Datastore'
 
          except Exception, ex:
             if type(ex) == HttpError:
@@ -122,7 +118,6 @@ class MainHandler(webapp2.RequestHandler):
               headers['X-Roxy-Status'] = 500
               headers['X-Roxy-Message'] = ex.__str__()
 
-            resource = Resource()
             resource.headers = json.dumps(headers)
             logging.error(resource.headers)
             resource.date = datetime.now()
