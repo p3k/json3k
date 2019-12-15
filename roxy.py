@@ -25,6 +25,7 @@ from sys import exc_info
 
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 
 from google.cloud import datastore
 
@@ -40,6 +41,7 @@ def get_url(url, request_headers):
         response = urlopen(request)
 
         headers.update(response.headers)
+
         headers['X-Roxy-Url'] = response.geturl()
         headers['X-Roxy-Status'] = response.status
 
@@ -55,6 +57,7 @@ def get_url(url, request_headers):
     except:
         traceback.print_exc()
         message = str(exc_info()[1])
+
         headers['X-Roxy-Status'] = 500
         headers['X-Roxy-Error'] = message
 
@@ -99,16 +102,16 @@ def roxy(request, make_response):
         response = get_url(url, {
             'Accept-Encoding': 'gzip, deflate',
             'If-None-Match': resource['headers'].get('etag', ''),
-            'Cookie': request.args.get('cookie', ''),
-            'User-Agent': request.args.get('ua', ''),
-            'Referer': request.args.get('ref', '')
+            'Cookie': urlencode(request.cookies),
+            'User-Agent': str(request.user_agent),
+            'Referer': request.referrer or ''
         })
 
         response_headers['X-Roxy-Debug'] = 'Fetched from URL'
 
         resource.update({
-            'content': response.get('content'),
             'headers': response.get('headers'),
+            'content': response.get('content'),
             'date': datetime.now(timezone.utc)
         })
 
@@ -117,16 +120,14 @@ def roxy(request, make_response):
     else:
         response_headers['X-Roxy-Debug'] = 'Fetched from Datastore'
 
-    print(resource['headers'])
-
     data = json.dumps({
         'headers': resource['headers'],
         'content': resource['content']
     })
 
     if callback:
-        data = '%s(%s)' % (callback, data)
         response_headers['Content-Type'] = 'application/javascript'
+        data = '%s(%s)' % (callback, data)
 
     if request.headers.get('Accept-Encoding', '').find('gzip') > -1:
         response_headers['Content-Encoding'] = 'gzip'
