@@ -1,5 +1,4 @@
 cron:
-- description: Daily removal of outdated referrers
-  url: /cron/referrers
-  schedule: every 24 hours
-  
+  - description: Daily removal of outdated referrers
+    url: /tasks/ferris
+    schedule: every 24 hours

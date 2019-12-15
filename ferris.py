@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2011 Tobi Schäfer.
+# Copyright 2019 Tobi Schäfer.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,74 +15,93 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging, webapp2, json
+import json
 
-from datetime import datetime, timedelta
-from urlparse import urlparse
+from datetime import datetime, timedelta, timezone
+from gzip import compress
 
-from google.appengine.api import memcache
-from google.appengine.ext import db
-from google.appengine.ext.webapp.util import run_wsgi_app
+from google.cloud import datastore
 
-class Referrer(db.Model):
-   group = db.StringProperty()
-   hits = db.IntegerProperty(default=0)
-   date = db.DateTimeProperty(auto_now=True)
+client = datastore.Client()
 
-class MainHandler(webapp2.RequestHandler):
-   def get(self):
-      self.response.headers['Content-Type'] = 'application/json'
-      self.response.headers['Access-Control-Allow-Origin'] = '*'
 
-      group = self.request.get('group')
+def ferris(request, make_response):
+    response_headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+    }
 
-      if (group):
-         url = self.request.get('url')
-         callback = self.request.get('callback')
-         try:
-            if (url):
-               referrer = memcache.get(url, namespace='ferris')
-               if referrer is None:
-                  referrer = Referrer.get_by_key_name(url) or \
-                        Referrer(key_name=url, group=group)
-               else:
-                  self.response.headers['X-Ferris-Debug'] = 'Fetched from Memcache'
-               referrer.hits += 1
-               if referrer.hits % 10 == 0:
-                  referrer.put()
-               memcache.set(url, referrer, namespace='ferris')
-               self.response.headers['X-Ferris-Hits'] = str(referrer.hits)
-               self.response.set_status(201)
-            else:
-               result = memcache.get('referrers', namespace='ferris')
-               if result is None:
-                  days = int(self.request.get('days') or 1)
-                  records = db.GqlQuery('select date, hits from Referrer where group = :1 \
-                        and date > :2 order by date desc', group, datetime.now() - timedelta(days=days))
-                  referrers = []
-                  for item in records:
-                     referrers.append({
-                        'url': item.key().name(),
-                        'hits': item.hits,
-                        'date': item.date.isoformat()
-                     })
-                  result = json.dumps(referrers)
-                  memcache.set('referrers', result, 300, namespace='ferris')
-                  self.response.headers['X-Ferris-Debug'] = 'Fetched from Datastore'
-               else:
-                  self.response.headers['X-Ferris-Debug'] = 'Fetched from Memcache'
-               if callback:
-                  self.response.out.write('%s(%s)' % (callback, result))
-               else:
-                  self.response.out.write(result)
-         except Exception, ex:
-            if callback:
-              self.response.headers['Content-Type'] = 'application/javascript'
-              self.response.out.write('%s(%s)' % (callback, \
-                  json.dumps({'status': 500, 'error': ex.__str__()})))
-            else:
-               raise
-      else:
-         self.response.set_status(400)
+    group = request.args.get('group')
 
-app = webapp2.WSGIApplication([('/ferris', MainHandler)], debug=False)
+    if not group:
+        return make_response('', 400)
+
+    url = request.args.get('url')
+    callback = request.args.get('callback')
+
+    if url:
+        key = client.key('Group', group, 'Referrer', url)
+        referrer = client.get(key=key)
+
+        if referrer is None:
+            referrer = datastore.Entity(key=key)
+            referrer.update(date=datetime.now(timezone.utc), hits=0)
+
+        referrer['hits'] += 1
+
+        client.put(referrer)
+
+        print(referrer)
+
+        return make_response(str(referrer['hits']), 201)
+
+    else:
+        days = int(request.args.get('days') or 1)
+        group_key = client.key('Group', group)
+
+        query = client.query(kind='Referrer', ancestor=group_key, order=(
+            '-date',), projection=('date', 'hits'))
+
+        query.add_filter('date', '>', datetime.now(
+            timezone.utc) - timedelta(days=days))
+
+        records = query.fetch()
+
+        referrers = map(lambda entity: {
+            'url': entity.key.name,
+            'hits': entity['hits'],
+            'date': entity['date']
+        }, records)
+
+        data = json.dumps(list(referrers))
+
+        if callback:
+            data = '%s(%s)' % (callback, data)
+            response_headers['Content-Type'] = 'application/javascript'
+
+        if request.headers.get('Accept-Encoding', '').find('gzip') > -1:
+            response_headers['Content-Encoding'] = 'gzip'
+            data = compress(data.encode('utf-8'))
+
+        response = make_response(data)
+        response.headers = response_headers
+
+        return response
+
+
+def cleanup(request, make_response):
+    if request.remote_addr != '127.0.0.1' and request.headers.get('X-Appengine-Cron') != 'true':
+        return make_response('', 401)
+
+    query = client.query(kind='Referrer', order=('-date',))
+    query.keys_only()
+    query.add_filter('date', '<', datetime.now(timezone.utc) - timedelta(days=2))
+
+    records = list(query.fetch())
+
+    try:
+        client.delete_multi(records)
+    except Exception as error:
+        print(error)
+
+    return str(len(records))

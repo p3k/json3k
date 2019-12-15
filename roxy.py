@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2011 Tobi Schäfer.
+# Copyright 2019 Tobi Schäfer.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,137 +15,124 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cgi, cStringIO, gzip, json, logging, webapp2, urllib
+import json
+import traceback
 
-from datetime import datetime, timedelta
-from httplib import responses
+from datetime import datetime, timedelta, timezone
+from gzip import compress, decompress
+from io import StringIO
+from sys import exc_info
 
-from google.appengine.api import urlfetch
-from google.appengine.api import memcache
-from google.appengine.ext import ndb
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
-class Resource(ndb.Model):
-   date = ndb.DateTimeProperty(auto_now_add=True)
-   etag = ndb.StringProperty()
-   headers = ndb.TextProperty()
-   content = ndb.TextProperty()
+from google.cloud import datastore
 
-class HttpError(Exception):
-   def __init__(self, response):
-      self.response = response
+client = datastore.Client()
 
-   def __str__(self):
-      return repr(self.response.status_code)
 
-class MainHandler(webapp2.RequestHandler):
-   def get(self):
-      TTL = 60
+def get_url(url, request_headers):
+    content = b''
+    headers = {}
 
-      self.response.headers['Content-Type'] = 'application/json'
-      self.response.headers['Access-Control-Allow-Origin'] = '*'
+    try:
+        request = Request(url, None, request_headers)
+        response = urlopen(request)
 
-      callback = self.request.get('callback')
-      url = self.request.get('url')
+        headers.update(response.headers)
+        headers['X-Roxy-Url'] = response.geturl()
+        headers['X-Roxy-Status'] = response.status
 
-      result = memcache.get(url)
+        if response.headers.get('Content-Encoding') == 'gzip':
+            content = decompress(response.read())
+        else:
+            content = response.read()
 
-      if result is None:
-         headers = {}
-         content = ''
+    except HTTPError as error:
+        headers['X-Roxy-Status'] = error.getcode()
+        headers['X-Roxy-Error'] = error.msg
 
-         cookie = self.request.get('cookie')
-         user_agent = self.request.get('ua')
-         referrer = self.request.get('ref')
-         resource = Resource()
+    except:
+        traceback.print_exc()
+        message = str(exc_info()[1])
+        headers['X-Roxy-Status'] = 500
+        headers['X-Roxy-Error'] = message
 
-         try:
-            encoded_url = urllib.quote(url.encode('utf8'), safe='%/:=&?~#+!$,;\'@()*[]')
+    else:
+        content_type = headers['Content-Type']
 
-            response = urlfetch.fetch(encoded_url, headers={
-              'Accept-Encoding': 'gzip',
-              'If-None-Match': resource.etag,
-              'Cookie': cookie,
-              'User-Agent': user_agent,
-              'Referer': referrer
-            }, follow_redirects=True)
+        if content_type and (content_type.startswith('text/') or
+                             content_type.startswith('application/') or
+                             content_type.endswith('xml')):
+            try:
+                content = content.decode('utf-8-sig')
+            except UnicodeDecodeError:
+                content = content.decode('iso-8859-1')
 
-            headers.update(response.headers)
-            headers['X-Roxy-Url'] = response.final_url or url
+    return {'content': content, 'headers': headers}
 
-            if headers.get('content-encoding') == 'gzip':
-              io = cStringIO.StringIO(response.content)
-              file = gzip.GzipFile(fileobj=io, mode='rb')
-              content = file.read()
-              file.close()
-            else:
-              content = response.content
 
-            content_type = response.headers.get('content-type')
+def roxy(request, make_response):
+    TTL = 60
 
-            if content_type:
-              if content_type.startswith('text/') or \
-                    content_type.startswith('application/xml') or \
-                    content_type.startswith('application/rss+xml') or \
-                    content_type.startswith('application/x-rss+xml'):
+    url = request.args.get('url')
+    callback = request.args.get('callback')
 
-                  try:
-                    content = content.decode('utf-8-sig')
-                  except UnicodeDecodeError:
-                    content = content.decode('iso-8859-1')
-                  except:
-                    raise
+    if not url:
+        return make_response('', 400)
 
-              else:
-                  content = content.encode('base64')
-            else:
-              content = content.encode('base64')
+    response_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    }
 
-            if response.status_code == 200:
-              resource.content = content
-              resource.etag = headers.get('etag')
-              resource.headers = json.dumps(headers)
-              self.response.headers['X-Roxy-Debug'] = 'Fetched from URL'
-            elif response.status_code != 304:
-              raise HttpError, response
-            else:
-              self.response.headers['X-Roxy-Debug'] = 'Fetched from Datastore'
+    key = client.key('Resource', url)
+    resource = client.get(key)
 
-         except Exception, ex:
-            if type(ex) == HttpError:
-              headers['X-Roxy-Status'] = ex.response.status_code
-              headers['X-Roxy-Message'] = responses[ex.response.status_code]
-            else:
-              headers['X-Roxy-Status'] = 500
-              headers['X-Roxy-Message'] = ex.__str__()
+    if resource is None:
+        resource = datastore.Entity(key=key, exclude_from_indexes=[
+                                    'content', 'headers', 'date'])
+        resource.update(date=datetime(
+            1, 1, 1, tzinfo=timezone.utc), content='', headers={})
 
-            resource.headers = json.dumps(headers)
-            logging.error(resource.headers)
-            resource.date = datetime.now()
+    if datetime.now(timezone.utc) - resource['date'] > timedelta(seconds=TTL):
+        response = get_url(url, {
+            'Accept-Encoding': 'gzip, deflate',
+            'If-None-Match': resource['headers'].get('etag', ''),
+            'Cookie': request.args.get('cookie', ''),
+            'User-Agent': request.args.get('ua', ''),
+            'Referer': request.args.get('ref', '')
+        })
 
-         result = json.dumps({
-            'headers': json.loads(resource.headers),
-            'content': resource.content
-         })
+        response_headers['X-Roxy-Debug'] = 'Fetched from URL'
 
-         ## Memcache does not allow values > 1000000 bytes in length
-         if len(result) < 1000000:
-            memcache.set(url, result, TTL)
+        resource.update({
+            'content': response.get('content'),
+            'headers': response.get('headers'),
+            'date': datetime.now(timezone.utc)
+        })
 
-      else:
-         self.response.headers['X-Roxy-Debug'] = 'Fetched from Memcache'
+        client.put(resource)
 
-      if callback:
-         self.response.headers['Content-Type'] = 'application/javascript'
-         result = '%s(%s)' % (callback, result)
+    else:
+        response_headers['X-Roxy-Debug'] = 'Fetched from Datastore'
 
-      if self.request.get('Accept-Encoding') == 'gzip':
-         self.response.headers['Content-Encoding'] = 'gzip'
-         io = cStringIO.StringIO()
-         file = gzip.GzipFile(fileobj=io, mode='wb')
-         file.write(result)
-         file.close()
-         result = io.getvalue()
+    print(resource['headers'])
 
-      self.response.out.write(result)
+    data = json.dumps({
+        'headers': resource['headers'],
+        'content': resource['content']
+    })
 
-app = webapp2.WSGIApplication([('/roxy', MainHandler)], debug=False)
+    if callback:
+        data = '%s(%s)' % (callback, data)
+        response_headers['Content-Type'] = 'application/javascript'
+
+    if request.headers.get('Accept-Encoding', '').find('gzip') > -1:
+        response_headers['Content-Encoding'] = 'gzip'
+        data = compress(data.encode('utf-8'))
+
+    response = make_response(data)
+    response.headers = response_headers
+
+    return response
