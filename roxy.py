@@ -33,7 +33,7 @@ client = datastore.Client()
 
 
 def get_url(url, request_headers):
-    content = b''
+    content = ''
     headers = {}
 
     try:
