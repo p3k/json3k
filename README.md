@@ -3,7 +3,7 @@ p3k.org’s JSONP Services
 
 For Google AppEngine.
 
-`python main.py`
+`make server`
 
 License
 -------
