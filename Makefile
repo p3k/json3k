@@ -1,4 +1,4 @@
-server : main.py
+server: main.py
 	python main.py
 
 datastore:
@@ -6,7 +6,7 @@ datastore:
 	export DATASTORE_PROJECT_ID=p3k-services; \
 	gcloud beta emulators datastore start; \
 	unset DATASTORE_EMULATOR_HOST; \
-	unset DATASTORE_PROJECT_ID; \
+	unset DATASTORE_PROJECT_ID;
 
 upload:
 	gcloud app deploy --no-promote
