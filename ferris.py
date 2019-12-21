@@ -93,15 +93,17 @@ def cleanup(request, make_response):
     if request.remote_addr != '127.0.0.1' and request.headers.get('X-Appengine-Cron') != 'true':
         return make_response('', 401)
 
-    query = client.query(kind='Referrer', order=('-date',))
+    query = client.query(kind='Referrer')
     query.keys_only()
-    query.add_filter('date', '<', datetime.now(timezone.utc) - timedelta(days=2))
 
     records = list(query.fetch())
 
-    try:
-        client.delete_multi(records)
-    except Exception as error:
-        print(error)
+    batch = client.batch()
+    batch.begin()
+
+    for record in records:
+        batch.delete(record.key)
+
+    batch.commit()
 
     return str(len(records))
