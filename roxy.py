@@ -99,15 +99,18 @@ def roxy(request, make_response):
             1, 1, 1, tzinfo=timezone.utc), content='', headers={})
 
     if datetime.now(timezone.utc) - resource['date'] > timedelta(seconds=TTL):
-        response = get_url(url, {
-            'Accept-Encoding': 'gzip, deflate',
-            'If-None-Match': resource['headers'].get('etag', ''),
-            'Cookie': urlencode(request.cookies),
-            'User-Agent': str(request.user_agent),
-            'Referer': request.referrer or ''
-        })
+        headers = { 'Accept-Encoding': 'gzip, deflate' }
 
-        response_headers['X-Roxy-Debug'] = 'Fetched from URL'
+        def set_header(header_name, value):
+            if value:
+                headers[header_name] = value
+
+        set_header('Accept', request.headers.get('Accept'))
+        set_header('Cookie', urlencode(request.cookies) or None)
+        set_header('If-None-Match', resource['headers'].get('etag'))
+        set_header('Referer', request.referrer)
+
+        response = get_url(url, headers)
 
         resource.update({
             'headers': response.get('headers'),
@@ -116,6 +119,8 @@ def roxy(request, make_response):
         })
 
         client.put(resource)
+
+        response_headers['X-Roxy-Debug'] = 'Fetched from URL'
 
     else:
         response_headers['X-Roxy-Debug'] = 'Fetched from Datastore'
