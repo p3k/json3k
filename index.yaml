@@ -5,10 +5,3 @@ indexes:
       - name: date
         direction: desc
       - name: hits
-
-  - kind: Referrer
-    properties:
-      - name: group
-      - name: date
-        direction: desc
-      - name: hits
