@@ -93,17 +93,16 @@ def cleanup(request, make_response):
     if request.remote_addr != '127.0.0.1' and request.headers.get('X-Appengine-Cron') != 'true':
         return make_response('', 401)
 
+    def partition(list, size):
+        for i in range(0, len(list), size):
+            yield list[i : i + size]
+
     query = client.query(kind='Referrer')
     query.keys_only()
 
-    records = list(query.fetch())
+    keys = list(record.key for record in query.fetch())
 
-    batch = client.batch()
-    batch.begin()
+    for batch in partition(keys, 500):
+        client.delete_multi(batch)
 
-    for record in records:
-        batch.delete(record.key)
-
-    batch.commit()
-
-    return str(len(records))
+    return str(len(keys))
