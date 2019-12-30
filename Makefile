@@ -1,12 +1,15 @@
+DATASTORE_EMULATOR_HOST=localhost:8081
+DATASTORE_PROJECT_ID=p3k-services
+
 server: main.py
+	DATASTORE_EMULATOR_HOST=$(DATASTORE_EMULATOR_HOST) \
+	DATASTORE_PROJECT_ID=$(DATASTORE_PROJECT_ID) \
 	python main.py
 
 datastore:
-	export DATASTORE_EMULATOR_HOST=localhost:8081; \
-	export DATASTORE_PROJECT_ID=p3k-services; \
-	gcloud beta emulators datastore start; \
-	unset DATASTORE_EMULATOR_HOST; \
-	unset DATASTORE_PROJECT_ID;
+	DATASTORE_EMULATOR_HOST=$(DATASTORE_EMULATOR_HOST) \
+	DATASTORE_PROJECT_ID=$(DATASTORE_PROJECT_ID) \
+	gcloud beta emulators datastore start
 
 upload:
 	gcloud app deploy --no-promote
