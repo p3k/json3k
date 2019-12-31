@@ -51,8 +51,6 @@ def ferris(request, make_response):
 
         client.put(referrer)
 
-        print(referrer)
-
         return make_response(str(referrer['hits']), 201)
 
     else:
