@@ -38,7 +38,7 @@ def get_url(url, request_headers):
 
     try:
         request = Request(url, None, request_headers)
-        response = urlopen(request)
+        response = urlopen(request, None, 3)
 
         headers.update(response.headers)
 
