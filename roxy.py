@@ -92,27 +92,42 @@ def get_url(url, request_headers):
 def roxy(request, make_response):
     TTL = 60
 
-    url = request.args.get('url')
-    callback = request.args.get('callback')
-
-    if not url:
-        return make_response('', 400)
-
     response_headers = {
         'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/json'
     }
 
+    def send_response(status = 200, headers = {}, content = ''):
+        response = make_response(content, status)
+        response.headers = headers
+        return response
+
+    url = request.args.get('url')
+    callback = request.args.get('callback')
+
+    if not url:
+        return send_response(400, response_headers)
+
+    content = None
+    status = 200
+
     key = client.key('Resource', url)
     resource = client.get(key)
 
-    if resource is None:
+    if resource:
+        etag = resource['headers'].get('ETag')
+
+        if etag and etag == request.headers.get('If-None-Match'):
+            return send_response(304, response_headers)
+    else:
         resource = datastore.Entity(key=key, exclude_from_indexes=[
                                     'content', 'headers', 'date'])
         resource.update(date=datetime(
             1, 1, 1, tzinfo=timezone.utc), content='', headers={})
 
-    if datetime.now(timezone.utc) - resource['date'] > timedelta(seconds=TTL):
+    now = datetime.now(timezone.utc)
+
+    if now - resource['date'] > timedelta(seconds=TTL):
         headers = { 'Accept-Encoding': 'gzip, deflate' }
 
         def set_header(header_name, value):
@@ -128,14 +143,23 @@ def roxy(request, make_response):
 
         set_header('Referer', request.referrer)
 
-        response = get_url(url, headers)
+        data = get_url(url, headers)
+        content = data.get('content')
+        status = data.get('status')
 
-        resource.update({
-            'headers': response.get('headers'),
-            'content': response.get('content'),
-            'date': datetime.now(timezone.utc)
-        })
+        if status == 304:
+            for key in request.headers.keys():
+                if key.startswith('If-'): continue
+                status = 200
+                break
 
+        if content:
+            resource.update({
+                'content': content,
+                'headers': data.get('headers')
+            })
+
+        resource['date'] = now
         client.put(resource)
 
         response_headers['X-Roxy-Debug'] = 'Fetched from URL'
@@ -143,10 +167,24 @@ def roxy(request, make_response):
     else:
         response_headers['X-Roxy-Debug'] = 'Fetched from Datastore'
 
-    data = json.dumps({
-        'headers': resource['headers'],
-        'content': resource['content']
-    })
+    for key in resource['headers']:
+        if key in ['Content-Length']: continue
+        response_headers.setdefault(key, resource['headers'].get(key))
+
+    data = ''
+
+    if request.method == 'GET':
+        content = resource.get('content')
+
+        try:
+            content = content.decode('utf-8')
+        except:
+            pass
+
+        data = json.dumps({
+            'content': content,
+            'headers': resource.get('headers')
+        })
 
     if callback:
         response_headers['Content-Type'] = 'application/javascript'
@@ -156,7 +194,4 @@ def roxy(request, make_response):
         response_headers['Content-Encoding'] = 'gzip'
         data = compress(data.encode('utf-8'))
 
-    response = make_response(data)
-    response.headers = response_headers
-
-    return response
+    return send_response(status, response_headers, data)
