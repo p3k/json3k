@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 from gzip import compress, decompress
 from io import StringIO
 from sys import exc_info
+from wsgiref.handlers import format_date_time
 
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -113,7 +114,11 @@ def roxy(request, make_response):
 
         set_header('Accept', request.headers.get('Accept'))
         set_header('Cookie', urlencode(request.cookies) or None)
-        set_header('If-None-Match', resource['headers'].get('etag'))
+        set_header('If-Modified-Since', format_date_time(resource['date'].timestamp()))
+
+        etag = resource['headers'].get('ETag')
+        if etag: set_header('If-None-Match', etag)
+
         set_header('Referer', request.referrer)
 
         response = get_url(url, headers)
