@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import json
+import re
 import traceback
 
 from datetime import datetime, timedelta, timezone
@@ -44,6 +45,11 @@ def get_url(url, request_headers):
 
         headers['X-Roxy-Url'] = response.geturl()
         headers['X-Roxy-Status'] = response.status
+        etag = headers.get('ETag')
+
+        if etag:
+            # Remove suffix like `-gzip` from etag to make it work
+            headers['ETag'] = re.sub('-[^"]+("?)$', '\\1', etag)
 
         if response.headers.get('Content-Encoding') == 'gzip':
             content = decompress(response.read())
