@@ -36,7 +36,9 @@ client = datastore.Client()
 
 def get_url(url, request_headers):
     content = ''
+    message = ''
     headers = {}
+    status = 200
 
     try:
         request = Request(url, None, request_headers)
@@ -44,8 +46,9 @@ def get_url(url, request_headers):
 
         headers.update(response.headers)
 
-        headers['X-Roxy-Url'] = response.geturl()
-        headers['X-Roxy-Status'] = response.status
+        url = headers['X-Roxy-Url'] = response.geturl()
+        status = headers['X-Roxy-Status'] = response.status
+
         etag = headers.get('ETag')
 
         if etag:
@@ -58,18 +61,16 @@ def get_url(url, request_headers):
             content = response.read()
 
     except HTTPError as error:
-        headers['X-Roxy-Status'] = error.getcode()
-        headers['X-Roxy-Error'] = error.msg
+        status = headers['X-Roxy-Status'] = error.getcode()
+        message = headers['X-Roxy-Error'] = error.msg
 
     except:
         traceback.print_exc()
-        message = str(exc_info()[1])
-
-        headers['X-Roxy-Status'] = 500
-        headers['X-Roxy-Error'] = message
+        status = headers['X-Roxy-Status'] = 500
+        message = headers['X-Roxy-Error'] = str(exc_info()[1])
 
     else:
-        content_type = headers['Content-Type']
+        content_type = headers.get('Content-Type')
 
         if content_type and (content_type.startswith('text/') or
                              content_type.startswith('application/') or
@@ -79,7 +80,13 @@ def get_url(url, request_headers):
             except UnicodeDecodeError:
                 content = content.decode('iso-8859-1')
 
-    return {'content': content, 'headers': headers}
+    return {
+        'status': status,
+        'content': content,
+        'headers': headers,
+        'message': message,
+        'url': url
+    }
 
 
 def roxy(request, make_response):
