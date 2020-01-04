@@ -109,7 +109,6 @@ def roxy(request, make_response):
         return send_response(400, response_headers)
 
     content = None
-    status = 200
 
     key = client.key('Resource', url)
     resource = client.get(key)
@@ -121,9 +120,9 @@ def roxy(request, make_response):
             return send_response(304, response_headers)
     else:
         resource = datastore.Entity(key=key, exclude_from_indexes=[
-                                    'content', 'headers', 'date'])
-        resource.update(date=datetime(
-            1, 1, 1, tzinfo=timezone.utc), content='', headers={})
+                                    'content', 'date', 'headers', 'status'])
+        resource.update(content='', date=datetime(
+            1, 1, 1, tzinfo=timezone.utc), headers={}, status=200)
 
     now = datetime.now(timezone.utc)
 
@@ -146,21 +145,15 @@ def roxy(request, make_response):
 
         data = get_url(url, headers)
         content = data.get('content')
-        status = data.get('status')
 
-        if status == 304:
-            for key in request.headers.keys():
-                if key.startswith('If-'): continue
-                status = 200
-                break
+        if content: resource['content'] = content
 
-        if content:
-            resource.update({
-                'content': content,
-                'headers': data.get('headers')
-            })
+        resource.update({
+            'date': now,
+            'headers': data.get('headers'),
+            'status': data.get('status')
+        })
 
-        resource['date'] = now
         client.put(resource)
 
         response_headers['X-Roxy-Debug'] = 'Fetched from URL'
@@ -172,7 +165,9 @@ def roxy(request, make_response):
         if key in ['Content-Length']: continue
         response_headers.setdefault(key, resource['headers'].get(key))
 
+    content = None
     data = ''
+    status = resource.get('status') or 200
 
     if request.method == 'GET':
         content = resource.get('content')
@@ -186,6 +181,13 @@ def roxy(request, make_response):
             'content': content,
             'headers': resource.get('headers')
         })
+
+        if status == 304:
+            # If request was unconditional we need to return 200 with content no matter what
+            for key in request.headers.keys():
+                if key.startswith('If-'): continue
+                status = 200
+                break
 
     if callback:
         response_headers['Content-Type'] = 'application/javascript'
