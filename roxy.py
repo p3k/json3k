@@ -142,6 +142,7 @@ def roxy(request, make_response):
         if etag: set_header('If-None-Match', etag)
 
         set_header('Referer', request.referrer)
+        set_header('User-Agent', str(request.user_agent))
 
         data = get_url(url, headers)
         content = data.get('content')
