@@ -10,68 +10,80 @@ make install && make server
 Roxy
 ----
 
-Roxy is a simple HTTP proxy returning the response of an HTTP request as JSON data:
+Roxy is a simple caching HTTP proxy returning the response of an HTTP request as JSON data:
 
 ```sh
-curl 'http://localhost:8080/roxy?url=https://postman-echo.com/time/now'
+curl -G --data-urlencode 'url=https://postman-echo.com/time/now' 'http://localhost:8080/roxy'
 ```
 
 ```json
 {
+  "content": "Mon, 06 Jan 2020 07:26:58 GMT",
   "headers": {
     "Content-Encoding": "gzip",
-    "Content-Type": "text/html; charset=utf-8",
-    "Date": "Sat, 21 Dec 2019 15:42:28 GMT",
-    "ETag": "W/\"1d-UH6kDbDE38DtobPCNXMLlA/wEg8\"",
-    "Server": "nginx",
-    "set-cookie": "sails.sid=s%3AUiTdC0Yb8Tf18N8OMI5pAFzRW-exlwTo.QbLryFedr5UI1acbG09jepZUl7wCLiDk8DsEj1AKce4; Path=/; HttpOnly",
-    "Vary": "Accept-Encoding",
-    "Content-Length": "49",
-    "Connection": "Close",
-    "X-Roxy-Url": "https://postman-echo.com/time/now",
-    "X-Roxy-Status": 200
-  },
-  "content": "Sat, 21 Dec 2019 15:42:28 GMT"
+     "Content-Type": "text/html; charset=utf-8",
+     "Date": "Mon, 06 Jan 2020 07:26:58 GMT",
+     "ETag": "W/\"1d\"",
+     "Server": "nginx",
+     "set-cookie": "sails.sid=s%3AS2fABSVzWnUuBKmQoq5LTwFIf7_QN_NG.xmjFxEuq5w2mVp9DLrknr6tNryVW4JnGO4u5N%2F8dk58; Path=/; HttpOnly",
+     "Vary": "Accept-Encoding",
+     "Content-Length": "49",
+     "Connection": "Close",
+     "X-Roxy-Url": "https://postman-echo.com/time/now",
+     "X-Roxy-Status": 200
+  }
 }
 ```
 
+The additional header `X-Roxy-Url` contains the final URL should the request have been redirected, or the original URL otherwise; `X-Roxy-Status` contains the original HTTP status code which might differ from the one returned by the proxy itself due to the cached data.
+
 ```sh
-curl 'http://localhost:8080/roxy?url=https://postman-echo.com/status/404'
+curl -Gi --data-urlencode 'url=https://postman-echo.com/status/404' 'http://localhost:8080/roxy'
+```
+
+```plain
+HTTP/1.0 404 NOT FOUND
+Access-Control-Allow-Origin: *
+Content-Type: application/json
+X-Roxy-Debug: Fetched from URL
+X-Roxy-Status: 404
+X-Roxy-Error: Not Found
+Expires: Mon, 06 Jan 2020 07:29:29 GMT
+Content-Length: 79
+Server: Werkzeug/0.16.0 Python/3.6.9
+Date: Mon, 06 Jan 2020 07:28:29 GMT
+
+{"content": "", "headers": {"X-Roxy-Status": 404, "X-Roxy-Error": "Not Found"}}
+```
+
+In the HTTP headers sent by the proxy (not to be confused with those in the JSON payload) the additional `X-Roxy-*` headers mentioned above are included, too. 
+
+Furthermore, `X-Roxy-Debug` shows whether the response was fetched by reading it from the cache or requesting it from the original URL.
+
+Finally, in case of an error `X-Roxy-Error` contains a more or less descriptive error message, depending on the cause (HTTP status code, application issue etc.)
+
+```sh
+curl -G --data-urlencode 'url=https://unknown.domain' 'http://localhost:8080/roxy'
 ```
 
 ```json
 {
-  "headers": {
-    "X-Roxy-Status": 404,
-    "X-Roxy-Error": "Not Found"
-  },
-  "content": ""
-}
-```
-
-```sh
-curl 'http://localhost:8080/roxy?url=https://unknown.domain'
-```
-
-```json
-{
+  "content": "",
   "headers": {
     "X-Roxy-Status": 500,
     "X-Roxy-Error": "<urlopen error [Errno -2] Name or service not known>"
-  },
-  "content": ""
+  }
 }
 ```
 
 ### JSONP
 
 ```sh
-curl 'http://localhost:8080/roxy?url=https://postman-echo.com/time/now&callback=evaluate'
+curl -G --data-urlencode 'url=https://postman-echo.com/time/now' 'http://localhost:8080/roxy?callback=evaluate'
 ```
 
 ```js
-evaluate({"headers": {"Date": "Sat, 21 Dec 2019 17:39:51 GMT", "Content-Encoding": "gzip", "Vary": "Accept-Encoding", "Content-Length": "49", "Connection": "Close", "Server": "nginx", "X-Roxy-Status": 200, "ETag": "W/\"1d-4oceoAK5+QVtenK1cnUe78BzhvY\"", "Content-Type":
-"text/html; charset=utf-8", "set-cookie": "sails.sid=s%3ABFWOChVuhA6y3jkEL4xdKpqgMwq4_64F.F6qCdcTW5slNikB%2FoGXOrh51iACQOqjy3LuwfrkMEU8; Path=/; HttpOnly", "X-Roxy-Url": "https://postman-echo.com/time/now"}, "content": "Sat, 21 Dec 2019 17:39:51 GMT"})'
+evaluate({"content": "Mon, 06 Jan 2020 07:30:53 GMT", "headers": {"Content-Encoding": "gzip", "Content-Type": "text/html; charset=utf-8", "Date": "Mon, 06 Jan 2020 07:30:53 GMT", "ETag": "W/\"1d\"", "Server": "nginx", "set-cookie": "sails.sid=s%3AsPZWnJe5WvmBOFj4iIydYgPGVcx-zccy.VKP6VA7uRXxkYqk%2FuwCCR9aUnMnb2BfmppSs5sC92es; Path=/; HttpOnly", "Vary": "Accept-Encoding", "Content-Length": "49", "Connection": "Close", "X-Roxy-Url": "https://postman-echo.com/time/now", "X-Roxy-Status": 200}})
 ```
 
 ---
@@ -82,7 +94,8 @@ Ferris
 Ferris is a simple referrer counter incrementing the hits for each registered URL for 24 hours. Each referrer is assigned to a group which eventually can be requested to provide the list of total hits per referrer in descending order. At midnight GMT all records are purged (see `cron.yaml`) and counting starts anew.
 
 ```sh
-curl -i 'http://localhost:8080/ferris?group=foo&url=https://httpbin.org/status/200'
+curl -Gi --data-urlencode 'url=https://httpbin.org/status/200' 'http://localhost:8080/ferris?group=foo'
+
 HTTP/1.0 201 CREATED
 Content-Type: text/html; charset=utf-8
 Content-Length: 1
@@ -90,19 +103,25 @@ Server: Werkzeug/0.16.0 Python/3.6.9
 Date: Sat, 21 Dec 2019 17:20:52 GMT
 
 1
+```
 
-curl 'http://localhost:8080/ferris?group=foo&url=https://httpbin.org/get'
+The response body contains the current hit counter of the referrer URL.
+
+```sh
+curl -G --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8080/ferris?group=foo'
 1
 
-curl 'http://localhost:8080/ferris?group=foo&url=https://httpbin.org/get'
+!! # repeat last command
 2
 
-curl 'http://localhost:8080/ferris?group=foo&url=https://httpbin.org/get'
+!!
 3
 ```
 
+Sending a request without a URL, only with a group (which is required), Ferris returns the list of referrers recorded so far:
+
 ```sh
-curl "http://localhost:8080/ferris?group=foo"
+curl 'http://localhost:8080/ferris?group=foo'
 ```
 
 ```json
@@ -110,12 +129,38 @@ curl "http://localhost:8080/ferris?group=foo"
   {
     "url": "https://httpbin.org/get",
     "hits": 3,
-    "date": 1576949054453598
+    "date": 1576949054453598,
+    "metadata": {}
   },
   {
     "url": "https://httpbin.org/status/200",
     "hits": 1,
-    "date": 1576948808457560
+    "date": 1576948808457560,
+    "metadata": {}
+  }
+]
+```
+
+It is possible to add metadata to a referrer simply by appending it JSON-encoded to the ping URL:
+
+```sh
+curl -G --data-urlencode 'metadata={"foo":["bar","baz"]}' --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8080/ferris?group=meta'
+1
+```
+
+```sh
+curl 'http://localhost:8080/ferris?group=meta'
+```
+
+```json
+[
+  {
+    "url": "https://httpbin.org/get", 
+    "hits": 1, 
+    "date": 1578296164821.103, 
+    "metadata": {
+      "foo": ["bar", "baz"]
+    }
   }
 ]
 ```
@@ -123,11 +168,20 @@ curl "http://localhost:8080/ferris?group=foo"
 ### JSONP
 
 ```sh
-curl "http://localhost:8080/ferris?group=foo&callback=evaluate"
+curl 'http://localhost:8080/ferris?group=foo&callback=evaluate'
 ```
 
 ```js
 evaluate([{"url": "https://httpbin.org/get", "hits": 3, "date": 1576949054453598}, {"url": "https://httpbin.org/status/200", "hits": 1, "date": 1576948808457560}])
+```
+
+### Cleanup
+
+There is a task URL defined to delete all records at midnight to reduce the necessary amount of data storage. In the development environment it won’t run as cronjob but of course can be called manually:
+
+```sh
+curl 'http://localhost:8080/tasks/ferris'
+5
 ```
 
 ---
