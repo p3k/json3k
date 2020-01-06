@@ -18,6 +18,7 @@
 import json
 
 from datetime import datetime, timedelta, timezone
+from wsgiref.handlers import format_date_time
 from gzip import compress
 
 from google.cloud import datastore
@@ -75,6 +76,9 @@ def ferris(request, make_response):
             'date': entity['date'].timestamp() * 1000,
             'metadata': entity['metadata']
         }, records)
+
+        # Let the browser cache the referrer list for 10 minutes
+        response_headers['Expires'] = format_date_time(datetime.now(timezone.utc).timestamp() + 600)
 
         data = json.dumps(list(referrers))
 
