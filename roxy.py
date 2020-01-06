@@ -165,6 +165,8 @@ def roxy(request, make_response):
         if key in ['Content-Length']: continue
         response_headers.setdefault(key, resource['headers'].get(key))
 
+    response_headers['Expires'] = format_date_time(resource['date'].timestamp() + 60)
+
     content = None
     data = ''
     status = resource.get('status') or 200
