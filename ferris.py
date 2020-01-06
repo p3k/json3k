@@ -44,10 +44,17 @@ def ferris(request, make_response):
         referrer = client.get(key=key)
 
         if referrer is None:
-            referrer = datastore.Entity(key=key)
-            referrer.update(date=datetime.now(timezone.utc), hits=0)
+            referrer = datastore.Entity(key=key, exclude_from_indexes=['metadata'])
+            referrer.update(date=datetime.now(timezone.utc), hits=0, metadata={})
 
         referrer['hits'] += 1
+        metadata = request.args.get('metadata')
+
+        if metadata:
+            try:
+                referrer['metadata'].update(json.loads(metadata))
+            except Exception as error:
+                print(error)
 
         client.put(referrer)
 
@@ -57,18 +64,16 @@ def ferris(request, make_response):
         days = int(request.args.get('days') or 1)
         group_key = client.key('Group', group)
 
-        query = client.query(kind='Referrer', ancestor=group_key, order=(
-            '-date',), projection=('date', 'hits'))
-
-        query.add_filter('date', '>', datetime.now(
-            timezone.utc) - timedelta(days=days))
+        query = client.query(kind='Referrer', ancestor=group_key, order=('-date', '-hits'))
+        query.add_filter('date', '>', datetime.now(timezone.utc) - timedelta(days=days))
 
         records = query.fetch()
 
         referrers = map(lambda entity: {
             'url': entity.key.name,
             'hits': entity['hits'],
-            'date': entity['date']
+            'date': entity['date'].timestamp() * 1000,
+            'metadata': entity['metadata']
         }, records)
 
         data = json.dumps(list(referrers))
