@@ -13,7 +13,7 @@ Roxy
 Roxy is a simple caching HTTP proxy returning the response of an HTTP request as JSON data:
 
 ```sh
-curl -G --data-urlencode 'url=https://postman-echo.com/time/now' 'http://localhost:8080/roxy'
+curl -G --data-urlencode 'url=https://postman-echo.com/time/now' 'http://localhost:8001/roxy'
 ```
 
 ```json
@@ -38,7 +38,7 @@ curl -G --data-urlencode 'url=https://postman-echo.com/time/now' 'http://localho
 The additional header `X-Roxy-Url` contains the final URL should the request have been redirected, or the original URL otherwise; `X-Roxy-Status` contains the original HTTP status code which might differ from the one returned by the proxy itself due to the cached data.
 
 ```sh
-curl -Gi --data-urlencode 'url=https://postman-echo.com/status/404' 'http://localhost:8080/roxy'
+curl -Gi --data-urlencode 'url=https://postman-echo.com/status/404' 'http://localhost:8001/roxy'
 ```
 
 ```plain
@@ -63,7 +63,7 @@ Furthermore, `X-Roxy-Debug` shows whether the response was fetched by reading it
 Finally, in case of an error `X-Roxy-Error` contains a more or less descriptive error message, depending on the cause (HTTP status code, application issue etc.)
 
 ```sh
-curl -G --data-urlencode 'url=https://unknown.domain' 'http://localhost:8080/roxy'
+curl -G --data-urlencode 'url=https://unknown.domain' 'http://localhost:8001/roxy'
 ```
 
 ```json
@@ -79,7 +79,7 @@ curl -G --data-urlencode 'url=https://unknown.domain' 'http://localhost:8080/rox
 ### JSONP
 
 ```sh
-curl -G --data-urlencode 'url=https://postman-echo.com/time/now' 'http://localhost:8080/roxy?callback=evaluate'
+curl -G --data-urlencode 'url=https://postman-echo.com/time/now' 'http://localhost:8001/roxy?callback=evaluate'
 ```
 
 ```js
@@ -94,7 +94,7 @@ Ferris
 Ferris is a simple referrer counter incrementing the hits for each registered URL for 24 hours. Each referrer is assigned to a group which eventually can be requested to provide the list of total hits per referrer in descending order. At midnight GMT all records are purged (see `cron.yaml`) and counting starts anew.
 
 ```sh
-curl -Gi --data-urlencode 'url=https://httpbin.org/status/200' 'http://localhost:8080/ferris?group=foo'
+curl -Gi --data-urlencode 'url=https://httpbin.org/status/200' 'http://localhost:8001/ferris?group=foo'
 
 HTTP/1.0 201 CREATED
 Content-Type: text/html; charset=utf-8
@@ -108,7 +108,7 @@ Date: Sat, 21 Dec 2019 17:20:52 GMT
 The response body contains the current hit counter of the referrer URL.
 
 ```sh
-curl -G --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8080/ferris?group=foo'
+curl -G --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8001/ferris?group=foo'
 1
 
 !! # repeat last command
@@ -121,7 +121,7 @@ curl -G --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8080/fe
 Sending a request without a URL, only with a group (which is required), Ferris returns the list of referrers recorded so far:
 
 ```sh
-curl 'http://localhost:8080/ferris?group=foo'
+curl 'http://localhost:8001/ferris?group=foo'
 ```
 
 ```json
@@ -144,12 +144,12 @@ curl 'http://localhost:8080/ferris?group=foo'
 It is possible to add metadata to a referrer simply by appending it JSON-encoded to the ping URL:
 
 ```sh
-curl -G --data-urlencode 'metadata={"foo":["bar","baz"]}' --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8080/ferris?group=meta'
+curl -G --data-urlencode 'metadata={"foo":["bar","baz"]}' --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8001/ferris?group=meta'
 1
 ```
 
 ```sh
-curl 'http://localhost:8080/ferris?group=meta'
+curl 'http://localhost:8001/ferris?group=meta'
 ```
 
 ```json
@@ -168,7 +168,7 @@ curl 'http://localhost:8080/ferris?group=meta'
 ### JSONP
 
 ```sh
-curl 'http://localhost:8080/ferris?group=foo&callback=evaluate'
+curl 'http://localhost:8001/ferris?group=foo&callback=evaluate'
 ```
 
 ```js
@@ -180,7 +180,7 @@ evaluate([{"url": "https://httpbin.org/get", "hits": 3, "date": 1576949054453598
 There is a task URL defined to delete all records at midnight to reduce the necessary amount of data storage. In the development environment it won’t run as cronjob but of course can be called manually:
 
 ```sh
-curl 'http://localhost:8080/tasks/ferris'
+curl 'http://localhost:8001/tasks/ferris'
 5
 ```
 
