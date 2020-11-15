@@ -29,10 +29,6 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 
-from google.cloud import datastore
-
-client = datastore.Client()
-
 
 def get_url(url, request_headers):
     content = ''
@@ -109,66 +105,45 @@ def roxy(request, make_response):
         return send_response(400, response_headers)
 
     content = None
-
-    key = client.key('Resource', url)
-    resource = client.get(key)
-
-    if resource:
-        etag = resource['headers'].get('ETag')
-
-        if etag and etag == request.headers.get('If-None-Match'):
-            return send_response(304, response_headers)
-    else:
-        resource = datastore.Entity(key=key, exclude_from_indexes=[
-                                    'content', 'date', 'headers', 'status'])
-        resource.update(content='', date=datetime(
-            1, 1, 1, tzinfo=timezone.utc), headers={}, status=200)
-
     now = datetime.now(timezone.utc)
 
-    if now - resource['date'] > timedelta(seconds=TTL):
-        headers = { 'Accept-Encoding': 'gzip, deflate' }
+    resource = {
+        'content': '',
+        'date': now,
+        'headers': {},
+        'status': 200
+    }
 
-        def set_header(header_name, value):
-            if value:
-                headers[header_name] = value
+    headers = { 'Accept-Encoding': 'gzip, deflate' }
 
-        set_header('Accept', request.headers.get('Accept'))
-        set_header('Cookie', urlencode(request.cookies) or None)
-        set_header('If-Modified-Since', format_date_time(resource['date'].timestamp()))
+    def set_header(header_name, value):
+        if value:
+            headers[header_name] = value
 
-        etag = resource['headers'].get('ETag')
-        if etag: set_header('If-None-Match', etag)
+    set_header('Accept', request.headers.get('Accept'))
+    set_header('Cookie', urlencode(request.cookies) or None)
+    set_header('Referer', request.referrer)
+    set_header('User-Agent', str(request.user_agent))
 
-        set_header('Referer', request.referrer)
-        set_header('User-Agent', str(request.user_agent))
+    data = get_url(url, headers)
+    content = data.get('content')
 
-        data = get_url(url, headers)
-        content = data.get('content')
+    if content: resource['content'] = content
 
-        if content: resource['content'] = content
-
-        resource.update({
-            'date': now,
-            'headers': data.get('headers'),
-            'status': data.get('status')
-        })
-
-        client.put(resource)
-
-        response_headers['X-Roxy-Debug'] = 'Fetched from URL'
-
-    else:
-        response_headers['X-Roxy-Debug'] = 'Fetched from Datastore'
+    resource.update({
+        'headers': data.get('headers'),
+        'status': data.get('status')
+    })
 
     for key in resource['headers']:
         if key in ['Content-Length']: continue
+
         response_headers.setdefault(key, resource['headers'].get(key))
 
-    response_headers['Expires'] = format_date_time(resource['date'].timestamp() + 60)
+    response_headers['Expires'] = format_date_time(now.timestamp() + 60)
 
-    content = None
     data = ''
+    content = None
     status = resource.get('status') or 200
 
     if request.method == 'GET':

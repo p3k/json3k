@@ -1,4 +1,0 @@
-cron:
-  - description: Daily removal of outdated referrers
-    url: /tasks/ferris
-    schedule: every day 00:00

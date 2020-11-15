@@ -1,4 +1,0 @@
-runtime: python37
-
-automatic_scaling:
-  max_instances: 2
