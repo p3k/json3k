@@ -19,9 +19,8 @@ import entrecote
 import json
 
 from datetime import datetime, timedelta, timezone
-from wsgiref.handlers import format_date_time
 from gzip import compress
-
+from wsgiref.handlers import format_date_time
 
 def ferris(request, make_response):
     response_headers = {
@@ -34,7 +33,7 @@ def ferris(request, make_response):
     if not group:
         return make_response('', 400)
 
-    key = request.args.get('key')
+    key = request.args.get('url')
     callback = request.args.get('callback')
 
     if key:
@@ -43,7 +42,11 @@ def ferris(request, make_response):
         return make_response(str(entry['count']), 201)
 
     else:
-        referrers = entrecote.get(group)
+        referrers = map(lambda entry: {
+            'url': entry[0],
+            'hits': entry[1]['count'],
+            'metadata': entry[1]['metadata']
+        }, entrecote.get(group))
 
         # Let the browser cache the referrer list for 10 minutes
         response_headers['Expires'] = format_date_time(datetime.now(timezone.utc).timestamp() + 600)
