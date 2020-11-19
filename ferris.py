@@ -71,4 +71,4 @@ def cleanup(request, make_response):
     if request.remote_addr != '127.0.0.1':
         return make_response('', 401)
 
-    return entrecote.truncate(request.args.get('group'))
+    return str(entrecote.truncate(request.args.get('group')))
