@@ -42,11 +42,18 @@ def ferris(request, make_response):
         return make_response(str(entry['count']), 201)
 
     else:
-        referrers = map(lambda entry: {
-            'url': entry[0],
-            'hits': entry[1]['count'],
-            'metadata': entry[1]['metadata']
-        }, entrecote.get(group))
+        referrers = sorted(
+            map(
+                lambda entry: {
+                    'url': entry[0],
+                    'hits': entry[1]['count'],
+                    'metadata': entry[1]['metadata']
+                },
+                entrecote.get(group)
+            ),
+            key=lambda entry: entry['hits'],
+            reverse=True
+        )
 
         # Let the browser cache the referrer list for 10 minutes
         response_headers['Expires'] = format_date_time(datetime.now(timezone.utc).timestamp() + 600)
