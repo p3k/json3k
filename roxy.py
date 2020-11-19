@@ -86,8 +86,6 @@ def get_url(url, request_headers):
 
 
 def roxy(request, make_response):
-    TTL = 60
-
     response_headers = {
         'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/json'
