@@ -9,3 +9,6 @@ wsgi: main.py roxy.py ferris.py wsgi.py
 
 config:
 	mod_wsgi-express module-config
+
+clean:
+	rm -rf .db-*
