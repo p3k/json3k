@@ -26,11 +26,11 @@ def add(group, key, metadata=None):
     if not entry:
         entry = { 'count': 0 }
 
-    entry['metadata'] = metadata
+    if metadata:
+        entry['metadata'] = json.loads(metadata) if type(metadata) == str else metadata
+
     entry['count'] += 1
-
     db.set(key, entry)
-
     return entry
 
 
