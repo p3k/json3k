@@ -45,7 +45,7 @@ def truncate(group, before_date=None):
 
 
 def get_db(group):
-    return PupDB('.' + group)
+    return PupDB('.db-' + group + '.json')
 
 
 if __name__ == '__main__':
