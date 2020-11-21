@@ -134,7 +134,7 @@ def roxy(request, make_response):
     })
 
     for key in resource['headers']:
-        if key in ['Content-Length']: continue
+        if key in ['Content-Length', 'Transfer-Encoding']: continue
 
         response_headers.setdefault(key, resource['headers'].get(key))
 
