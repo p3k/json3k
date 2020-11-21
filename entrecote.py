@@ -16,6 +16,8 @@
 # limitations under the License.
 
 import json
+
+from pathlib import Path
 from pupdb.core import PupDB
 
 
@@ -45,7 +47,12 @@ def truncate(group, before_date=None):
 
 
 def get_db(group):
-    return PupDB('.db-' + group + '.json')
+    db_path = Path('/var/lib/entrecote/')
+
+    if not db_path.is_dir():
+        db_path.mkdir()
+
+    return PupDB(Path(db_path, group + '.json').as_posix())
 
 
 if __name__ == '__main__':

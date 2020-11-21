@@ -1,5 +1,6 @@
 install: requirements.txt
 	pip install -r requirements.txt
+	sudo mkdir -p /var/lib/entrecote
 
 server: main.py roxy.py ferris.py wsgi.py
 	python main.py
@@ -9,6 +10,3 @@ wsgi: main.py roxy.py ferris.py wsgi.py
 
 config:
 	mod_wsgi-express module-config
-
-clean:
-	rm -rf .db-*
