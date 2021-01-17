@@ -61,7 +61,7 @@ def get_url(url, request_headers):
         message = headers['X-Roxy-Error'] = error.msg
 
     except:
-        traceback.print_exc()
+        #traceback.print_exc()
         status = headers['X-Roxy-Status'] = 500
         message = headers['X-Roxy-Error'] = str(exc_info()[1])
 
