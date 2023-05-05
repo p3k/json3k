@@ -10,3 +10,6 @@ wsgi: main.py roxy.py ferris.py wsgi.py
 
 config:
 	mod_wsgi-express module-config
+
+clean:
+	pip uninstall --require-virtualenv --requirement requirements.txt
