@@ -1,11 +1,11 @@
-install: requirements.txt
-	pip install -r requirements.txt
-	sudo mkdir -p /var/lib/entrecote
+install:
+	pip install --require-virtualenv --requirement requirements.txt
+	sudo mkdir --parent /var/lib/entrecote
 
-server: main.py roxy.py ferris.py wsgi.py
+server:
 	python main.py
 
-wsgi: main.py roxy.py ferris.py wsgi.py
+wsgi:
 	mod_wsgi-express start-server wsgi.py
 
 config:
