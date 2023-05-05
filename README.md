@@ -1,12 +1,23 @@
-# p3k.org’s JSONP Services
+# p3k.org’s JSON/P Services
 
 For Python3 / [mod_wsgi](https://modwsgi.readthedocs.io).
 
 ```sh
-make install && make server
+$ make && make server
+# — or —
+$ make && make wsgi
 ```
 
-> ⚠️ [Integration with Google AppEngine](https://github.com/p3k/json3k/tree/gae) is no longer supported.
+Run `make config` to output the corresponding Apache configuration lines:
+
+```sh
+$ make config
+mod_wsgi-express module-config
+LoadModule wsgi_module "/home/ubuntu/.venv/json3k/lib/python3.10/site-packages/mod_wsgi/server/mod_wsgi-py310.cpython-310-x86_64-linux-gnu.so"
+WSGIPythonHome "/home/ubuntu/.venv/json3k"
+```
+
+> 💡 [Integration with Google AppEngine](https://github.com/p3k/json3k/tree/gae) is no longer supported.
 
 ## Roxy
 
