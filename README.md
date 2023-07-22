@@ -2,7 +2,7 @@
 
 For Python3 / [mod_wsgi](https://modwsgi.readthedocs.io).
 
-```sh
+```shell
 # A virtual Python environment is required
 $ python -m venv /path/to/.venv/json3k
 $ source /path/to/.venv/json3k/bin/activate
@@ -17,7 +17,7 @@ $ make && make wsgi
 
 Roxy is a simple HTTP proxy returning the response of an HTTP request as JSON data:
 
-```sh
+```shell
 curl -G --data-urlencode 'url=https://postman-echo.com/time/now' \
    'http://localhost:8000/roxy'
 ```
@@ -43,7 +43,7 @@ curl -G --data-urlencode 'url=https://postman-echo.com/time/now' \
 
 The additional header `X-Roxy-Url` contains either the final URL, in case the request has been redirected, or the original URL otherwise; `X-Roxy-Status` contains the original HTTP status code which might differ from the one returned by a HTTP server caching Roxy responses (which is recommended).
 
-```sh
+```shell
 curl -Gi --data-urlencode 'url=https://postman-echo.com/status/404' \
   'http://localhost:8000/roxy'
 ```
@@ -67,7 +67,7 @@ In the HTTP headers sent by Roxy (not to be confused with those in the JSON payl
 
 Finally, in case of an error `X-Roxy-Error` contains a more or less descriptive error message, depending on the cause (HTTP status code, application issue etc.)
 
-```sh
+```shell
 curl -G --data-urlencode 'url=https://unknown.domain' \
   'http://localhost:8000/roxy'
 ```
@@ -84,7 +84,7 @@ curl -G --data-urlencode 'url=https://unknown.domain' \
 
 ### JSONP
 
-```sh
+```shell
 curl -G --data-urlencode 'url=https://postman-echo.com/time/now' \
   'http://localhost:8000/roxy?callback=evaluate'
 ```
@@ -99,8 +99,8 @@ evaluate({"content": "Mon, 06 Jan 2020 07:30:53 GMT", "headers": {"Content-Encod
 
 Ferris is a simple referrer counter incrementing the hits for each registered URL. Each referrer is assigned to a group which eventually can be requested to provide the list of total hits per referrer in descending order.
 
-```sh
-curl -Gi --data-urlencode 'url=https://httpbin.org/status/200' 'http://localhost:8000/ferris?group=foo'
+```shell
+curl -Gi --data-urlencode 'url=http://host.dom' 'http://localhost:8000/ferris?group=foo'
 
 HTTP/1.0 201 CREATED
 Content-Type: text/html; charset=utf-8
@@ -113,8 +113,8 @@ Date: Sat, 21 Dec 2019 17:20:52 GMT
 
 The response body contains the current hit counter of the referrer URL.
 
-```sh
-curl -G --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8000/ferris?group=foo'
+```shell
+curl -G --data-urlencode 'url=http://other.server' 'http://localhost:8000/ferris?group=foo'
 1
 
 !! # repeat last command
@@ -126,20 +126,20 @@ curl -G --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8000/fe
 
 Sending a request without a URL, only with a group (which is required), Ferris returns the list of referrers recorded so far:
 
-```sh
+```shell
 curl 'http://localhost:8000/ferris?group=foo'
 ```
 
 ```json
 [
   {
-    "url": "https://httpbin.org/get",
+    "url": "http://other.server",
     "hits": 3,
     "date": 1576949054453598,
     "metadata": {}
   },
   {
-    "url": "https://httpbin.org/status/200",
+    "url": "http://host.dom",
     "hits": 1,
     "date": 1576948808457560,
     "metadata": {}
@@ -149,19 +149,19 @@ curl 'http://localhost:8000/ferris?group=foo'
 
 It is possible to add metadata to a referrer simply by appending it JSON-encoded to the ping URL:
 
-```sh
-curl -G --data-urlencode 'metadata={"foo":["bar","baz"]}' --data-urlencode 'url=https://httpbin.org/get' 'http://localhost:8000/ferris?group=meta'
+```shell
+curl -G --data-urlencode 'metadata={"foo":["bar","baz"]}' --data-urlencode 'url=https://host.dom' 'http://localhost:8000/ferris?group=meta'
 1
 ```
 
-```sh
+```shell
 curl 'http://localhost:8000/ferris?group=meta'
 ```
 
 ```json
 [
   {
-    "url": "https://httpbin.org/get",
+    "url": "http://host.dom",
     "hits": 1,
     "date": 1578296164821.103,
     "metadata": {
@@ -173,19 +173,19 @@ curl 'http://localhost:8000/ferris?group=meta'
 
 ### JSONP
 
-```sh
+```shell
 curl 'http://localhost:8000/ferris?group=foo&callback=evaluate'
 ```
 
 ```js
-evaluate([{"url": "https://httpbin.org/get", "hits": 3, "date": 1576949054453598}, {"url": "https://httpbin.org/status/200", "hits": 1, "date": 1576948808457560}])
+evaluate([{"url": "http://other.server", "hits": 3, "date": 1576949054453598}, {"url": "http://host.dom", "hits": 1, "date": 1576948808457560}])
 ```
 
 ### Cleanup
 
-There is a task URL defined to delete all records of a group to reduce the necessary amount of data storage. This should be called from a cronjob:
+There is a task URL defined to delete all records of a group to reduce the necessary amount of data storage. This is only allowed from localhost and should be called from a cronjob:
 
-```sh
+```shell
 curl 'http://localhost:8000/tasks/ferris?group=foo'
 True
 ```
@@ -194,7 +194,7 @@ True
 
 Run `make config` to output the corresponding Apache configuration lines:
 
-```sh
+```shell
 $ make config
 mod_wsgi-express module-config
 LoadModule wsgi_module "/path/to/.venv/json3k/lib/python3.10/site-packages/mod_wsgi/server/mod_wsgi-py310.cpython-310-x86_64-linux-gnu.so"
