@@ -47,7 +47,7 @@ def ferris(request, make_response):
                 lambda entry: {
                     'url': entry[0],
                     'hits': entry[1]['count'],
-                    'metadata': entry[1]['metadata']
+                    'metadata': entry[1]['metadata'] if 'metadata' in entry[1] else {}
                 },
                 entrecote.get(group)
             ),
