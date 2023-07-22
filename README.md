@@ -1,12 +1,17 @@
-# p3k.org’s JSONP Services
+# p3k.org’s JSON/P Services
 
 For Python3 / [mod_wsgi](https://modwsgi.readthedocs.io).
 
 ```sh
-make install && make server
+# A virtual Python environment is required
+$ python -m venv /path/to/.venv/json3k
+$ source /path/to/.venv/json3k/bin/activate
+$ make && make server
+# — or —
+$ make && make wsgi
 ```
 
-> ⚠️ [Integration with Google AppEngine](https://github.com/p3k/json3k/tree/gae) is no longer supported.
+> 💡 [Integration with Google AppEngine](https://github.com/p3k/json3k/tree/gae) is no longer supported.
 
 ## Roxy
 
@@ -183,6 +188,32 @@ There is a task URL defined to delete all records of a group to reduce the neces
 ```sh
 curl 'http://localhost:8000/tasks/ferris?group=foo'
 True
+```
+
+## Deployment
+
+Run `make config` to output the corresponding Apache configuration lines:
+
+```sh
+$ make config
+mod_wsgi-express module-config
+LoadModule wsgi_module "/path/to/.venv/json3k/lib/python3.10/site-packages/mod_wsgi/server/mod_wsgi-py310.cpython-310-x86_64-linux-gnu.so"
+WSGIPythonHome "/path/to/.venv/json3k"
+```
+
+In current Apache installations, the `LoadModule` line goes into `/etc/apache2/mods-enabled/wsgi.load`, and the other one into `/etc/apache2/mods-enabled/wsgi.conf`.
+
+You might also need to modify the `WSGISocketPrefix` setting, so Apache does not complain about [insufficient permission to create the socket](https://modwsgi.readthedocs.io/en/develop/user-guides/configuration-issues.html#location-of-unix-sockets):
+
+```apache2
+WSGISocketPrefix /var/run/apache2/wsgi
+```
+
+In case of multiple applications are being run, [WSIGʼs “daemon” mode](https://modwsgi.readthedocs.io/en/develop/user-guides/configuration-guidelines.html#defining-process-groups) needs to be used:
+
+```apache2
+WSGIDaemonProcess json3k python-home=/path/to/.venv/json3k home=/path/to/json3k
+WSGIScriptAlias /json3k /path/to/json3k/wsgi.py process-group=json3k
 ```
 
 ---
