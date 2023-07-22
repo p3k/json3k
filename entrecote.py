@@ -47,7 +47,7 @@ def truncate(group, before_date=None):
 
 
 def get_db(group):
-    db_path = Path('/var/lib/entrecote/')
+    db_path = Path('.entrecote')
 
     if not db_path.is_dir():
         db_path.mkdir()

@@ -2,7 +2,7 @@ install: requirements.txt
 	python3 -m venv .venv
 	. .venv/bin/activate
 	.venv/bin/pip install --requirement requirements.txt
-	sudo mkdir -p /var/lib/entrecote
+	mkdir -p .entrecote
 
 server: .venv/bin/python3 main.py roxy.py ferris.py wsgi.py
 	.venv/bin/python3 main.py
