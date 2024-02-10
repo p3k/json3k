@@ -1,0 +1,27 @@
+name: Run tests
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [3.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: |
+          command -v curl
+          command -v jq
+
+      # - run: make install
+      # - run: |
+      #     make server &
+      #     #sh ./test.sh
+      #     kill %1
