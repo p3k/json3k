@@ -1,0 +1,21 @@
+name: Run tests
+
+on:
+  push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [3.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: |
+          make install
+          make server &
+          #sh ./test.sh
+          kill %1
