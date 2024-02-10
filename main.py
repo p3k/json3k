@@ -25,6 +25,10 @@ dictConfig({
 app = Flask(__name__)
 
 
+@app.route('/')
+def welcome():
+    return make_response("JSON3k services ready.")
+
 @app.route('/roxy')
 def roxy_service():
     return roxy(request, make_response)

@@ -11,17 +11,28 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.x]
+        python-version: ["pypy3.9", "pypy3.10", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
 
-      - run: |
-          command -v curl
-          command -v jq
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      # - run: make install
-      # - run: |
-      #     make server &
-      #     #sh ./test.sh
-      #     kill %1
+      - name: Install dependencies
+        run: make install
+
+      - name: Run Entrecote tests
+        run: .venv/bin/python3 entrecote.py
+
+      - name: Run development server
+        uses: JarvusInnovations/background-action@v1
+        with:
+          run: make server &
+          wait-on: http://127.0.0.1:8000
+          log-output-if: failure
+
+      - name: Run Roxy and Ferris tests
+        run: sh ./test.sh
