@@ -1,10 +1,23 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
   "extends": [
     "config:base",
-    ":disableRateLimiting",
+    ":automergeMajor",
     ":pinVersions",
-    ":semanticCommitsDisabled"    
+    ":semanticCommitsDisabled"
   ],
-  "labels": ["dependencies"]
+
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["urgent"],
+    "automerge": true
+  },
+
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+
+  "labels": ["dependency"]
 }
