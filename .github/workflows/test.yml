@@ -1,12 +1,10 @@
 name: Run tests
 
 on:
-  push:
-    branches:
-      - main
+  push
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     strategy:
@@ -24,15 +22,28 @@ jobs:
       - name: Install dependencies
         run: make install
 
-      - name: Run Entrecote tests
-        run: .venv/bin/python3 entrecote.py
+      - name: Install wsgi dependency
+        if: ${{ contains(github.ref, 'mod-wsgi-standalone') }}
+        run: make wsgi
 
       - name: Run development server
+        if: ${{ !contains(github.ref, 'mod-wsgi-standalone') }}
         uses: JarvusInnovations/background-action@v1
         with:
           run: make server &
           wait-on: http://127.0.0.1:8000
           log-output-if: failure
 
+      - name: Run wsgi server
+        if: ${{ contains(github.ref, 'mod-wsgi-standalone') }}
+        uses: JarvusInnovations/background-action@v1
+        with:
+          run: make wsgi-server &
+          wait-on: http://127.0.0.1:8000
+          log-output-if: failure
+
       - name: Run Roxy and Ferris tests
         run: sh ./test.sh
+
+      - name: Run Entrecote tests
+        run: .venv/bin/python3 entrecote.py
