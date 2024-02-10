@@ -3,12 +3,10 @@
 For Python3 / [mod_wsgi](https://modwsgi.readthedocs.io).
 
 ```shell
-# A virtual Python environment is required
-$ python -m venv /path/to/.venv/json3k
-$ source /path/to/.venv/json3k/bin/activate
+# A virtual Python environment is automatically created in the .venv directory
 $ make && make server
 # — or —
-$ make && make wsgi
+$ make wgsi && make wsgi-server
 ```
 
 > 💡 [Integration with Google AppEngine](https://github.com/p3k/json3k/tree/gae) is no longer supported.
