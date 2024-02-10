@@ -10,14 +10,22 @@ jobs:
     strategy:
       matrix:
         python-version: ["pypy3.9", "pypy3.10", "3.9", "3.10", "3.11", "3.12"]
+        wsgi-python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Python ${{ matrix.python-version }}
+        if: ${{ !contains(github.ref, 'mod-wsgi-standalone') }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Setup Python ${{ matrix.python-version }}
+        if: ${{ contains(github.ref, 'mod-wsgi-standalone') }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.wsgi-python-version }}
 
       - name: Install dependencies
         run: make install
