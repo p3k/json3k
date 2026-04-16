@@ -14,10 +14,10 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -30,7 +30,7 @@ jobs:
 
       - name: Run development server
         if: ${{ !contains(github.ref, 'mod-wsgi-standalone') }}
-        uses: JarvusInnovations/background-action@v1
+        uses: JarvusInnovations/background-action@v1.0.7
         with:
           run: make server &
           wait-on: http://127.0.0.1:8000
@@ -38,7 +38,7 @@ jobs:
 
       - name: Run wsgi server
         if: ${{ contains(github.ref, 'mod-wsgi-standalone') }}
-        uses: JarvusInnovations/background-action@v1
+        uses: JarvusInnovations/background-action@v1.0.7
         with:
           run: make wsgi-server &
           wait-on: http://127.0.0.1:8000
