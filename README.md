@@ -80,6 +80,32 @@ curl -G --data-urlencode 'url=https://unknown.domain' \
 }
 ```
 
+### Restrictions
+
+Roxy only fetches `http` and `https` URLs; any other scheme (e.g. `file` or `ftp`) is refused with status `400`. Requests to addresses that are not publicly routable – loopback addresses like `localhost`, private networks, link-local addresses like `169.254.169.254` and so on – are refused with status `403`. Both checks apply to every redirect, too.
+
+```shell
+curl -G --data-urlencode 'url=http://localhost:8000/' 'http://localhost:8000/roxy'
+```
+
+```json
+{
+  "content": "",
+  "headers": {
+    "X-Roxy-Status": 403,
+    "X-Roxy-Error": "Requests to non-public addresses are not allowed"
+  }
+}
+```
+
+To allow such requests, e.g. for feeds in your intranet or when developing against a local server, create the optional file `local.py` next to `roxy.py` (it is ignored by Git):
+
+```python
+allow_private_hosts = True
+```
+
+The setting is read when the server starts, so restart it after changing the file. Other URL schemes remain refused.
+
 ### JSONP
 
 ```shell

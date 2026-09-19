@@ -21,13 +21,123 @@ import traceback
 
 from datetime import datetime, timedelta, timezone
 from gzip import compress, decompress
+from http.client import HTTPConnection, HTTPSConnection
 from io import StringIO
+from ipaddress import ip_address
+from socket import SOCK_STREAM, create_connection, getaddrinfo
 from sys import exc_info
 from wsgiref.handlers import format_date_time
 
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+from urllib.request import (
+    HTTPDefaultErrorHandler,
+    HTTPErrorProcessor,
+    HTTPHandler,
+    HTTPRedirectHandler,
+    HTTPSHandler,
+    OpenerDirector,
+    ProxyHandler,
+    Request,
+    UnknownHandler
+)
 from urllib.parse import urlencode
+
+# Local settings are optional, see `local.py` in the README
+try:
+    from local import allow_private_hosts
+except ImportError:
+    allow_private_hosts = False
+
+
+class ForbiddenUrl(Exception):
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status = status
+
+
+def check_scheme(request):
+    # Rely on the request’s own URL parsing to avoid any mismatch with what is opened eventually
+    if request.type not in ('http', 'https'):
+        raise ForbiddenUrl(400, 'Only http and https URLs are supported')
+
+
+def is_public(address):
+    ip = ip_address(address.partition('%')[0])
+
+    # Look at the embedded IPv4 address of IPv4-mapped addresses like `::ffff:127.0.0.1`
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+
+    return ip.is_global
+
+
+def create_public_connection(address, *args, **kwargs):
+    host, port = address
+    addresses = [info[4][0] for info in getaddrinfo(host, port, type=SOCK_STREAM)]
+
+    if not allow_private_hosts and not all(map(is_public, addresses)):
+        raise ForbiddenUrl(403, 'Requests to non-public addresses are not allowed')
+
+    error = None
+
+    # Connect to the addresses just checked instead of resolving the host name a
+    # second time, so DNS rebinding cannot sneak in a different address
+    for ip in addresses:
+        try:
+            return create_connection((ip, port), *args, **kwargs)
+        except OSError as exc:
+            error = exc
+
+    raise error
+
+
+class PublicHTTPConnection(HTTPConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = create_public_connection
+
+
+class PublicHTTPSConnection(HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = create_public_connection
+
+
+class PublicHTTPHandler(HTTPHandler):
+    def do_open(self, http_class, req, **http_conn_args):
+        return super().do_open(PublicHTTPConnection, req, **http_conn_args)
+
+
+class PublicHTTPSHandler(HTTPSHandler):
+    def do_open(self, http_class, req, **http_conn_args):
+        return super().do_open(PublicHTTPSConnection, req, **http_conn_args)
+
+
+class PublicRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        request = super().redirect_request(*args, **kwargs)
+
+        if request:
+            check_scheme(request)
+
+        return request
+
+
+# Unlike `urllib.request.urlopen` this opener has neither a file, FTP nor data
+# handler, and every connection – including those following a redirect – goes
+# through `create_public_connection`
+opener = OpenerDirector()
+
+for handler in (
+    ProxyHandler(),
+    UnknownHandler(),
+    PublicHTTPHandler(),
+    PublicHTTPSHandler(),
+    PublicRedirectHandler(),
+    HTTPDefaultErrorHandler(),
+    HTTPErrorProcessor()
+):
+    opener.add_handler(handler)
 
 
 def get_url(url, request_headers):
@@ -38,7 +148,8 @@ def get_url(url, request_headers):
 
     try:
         request = Request(url, None, request_headers)
-        response = urlopen(request, None, 3)
+        check_scheme(request)
+        response = opener.open(request, None, 3)
 
         headers.update(response.headers)
 
@@ -59,6 +170,10 @@ def get_url(url, request_headers):
     except HTTPError as error:
         status = headers['X-Roxy-Status'] = error.getcode()
         message = headers['X-Roxy-Error'] = error.msg
+
+    except ForbiddenUrl as error:
+        status = headers['X-Roxy-Status'] = error.status
+        message = headers['X-Roxy-Error'] = str(error)
 
     except:
         #traceback.print_exc()
