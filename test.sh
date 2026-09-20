@@ -51,5 +51,14 @@ test "$(
   echo "$response" | jq .[0].hits
 )" = 3 || exit 1
 
+# Groups are file names, so they must not point anywhere else
+for bad_group in '../unit-tests' '/tmp/unit-tests' 'unit.tests'; do
+  test "$(
+    $curl --output /dev/null --write-out '%{http_code}' \
+      --data-urlencode "group=$bad_group" --data-urlencode 'url=http://host.dom' \
+      "$base_url/ferris"
+  )" = 400 || exit 1
+done
+
 # Clean up
 $curl "$base_url/tasks/ferris?group=$group" > /dev/null
