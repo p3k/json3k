@@ -61,7 +61,7 @@ Content-Type: application/json
 {"content": "", "headers": {"X-Roxy-Status": 404, "X-Roxy-Error": "Not Found"}}
 ```
 
-In the HTTP headers sent by Roxy (not to be confused with those in the JSON payload) the additional `X-Roxy-*` headers mentioned above are included, too.
+In the HTTP headers sent by Roxy (not to be confused with those in the JSON payload) the additional `X-Roxy-*` headers mentioned above are included, too. Of the headers of the proxied response only `ETag` and `Last-Modified` are passed on in addition, since the others – `Set-Cookie` above all – would take effect on the origin of Roxy; the JSON payload still lists all of them. In the same spirit, the cookies sent by a client to Roxy are not forwarded to the requested server.
 
 Finally, in case of an error `X-Roxy-Error` contains a more or less descriptive error message, depending on the cause (HTTP status code, application issue etc.)
 

@@ -40,13 +40,23 @@ from urllib.request import (
     Request,
     UnknownHandler
 )
-from urllib.parse import urlencode
-
 # Local settings are optional, see `local.py` in the README
 try:
     from local import allow_private_hosts
 except ImportError:
     allow_private_hosts = False
+
+
+# The headers of the proxied response that are passed on with the response of
+# Roxy. Any other would take effect on the origin of the proxy: `Set-Cookie`
+# could set its cookies, `Strict-Transport-Security` or `Clear-Site-Data`
+# would apply to it, and `Cache-Control` would undo the caching set by Roxy
+PASSED_HEADERS = ('etag', 'last-modified')
+
+
+def is_passed_header(name):
+    name = name.lower()
+    return name in PASSED_HEADERS or name.startswith('x-roxy-')
 
 
 class ForbiddenUrl(Exception):
@@ -233,8 +243,9 @@ def roxy(request, make_response):
         if value:
             headers[header_name] = value
 
+    # The cookies of the client belong to the origin of the proxy, so they must
+    # not be sent to any other server
     set_header('Accept', request.headers.get('Accept'))
-    set_header('Cookie', urlencode(request.cookies) or None)
     set_header('Referer', request.referrer)
     set_header('User-Agent', str(request.user_agent))
 
@@ -249,9 +260,8 @@ def roxy(request, make_response):
     })
 
     for key in resource['headers']:
-        if key in ['Content-Length', 'Transfer-Encoding']: continue
-
-        response_headers.setdefault(key, resource['headers'].get(key))
+        if is_passed_header(key):
+            response_headers.setdefault(key, resource['headers'].get(key))
 
     response_headers['Expires'] = format_date_time(now.timestamp() + 60)
 
