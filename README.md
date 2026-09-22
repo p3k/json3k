@@ -137,6 +137,8 @@ Date: Sat, 21 Dec 2019 17:20:52 GMT
 
 The response body contains the current hit counter of the referrer URL.
 
+A group name may only consist of letters, digits, hyphens and underscores (up to 64 characters), since it is used as the name of the file the records are stored in. Requests with any other group name – as well as ones with metadata that is not valid JSON – are refused with status `400`.
+
 ```shell
 curl -G --data-urlencode 'url=http://other.server' 'http://localhost:8000/ferris?group=foo'
 1
