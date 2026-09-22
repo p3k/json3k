@@ -30,7 +30,7 @@ def ferris(request, make_response):
 
     group = request.args.get('group')
 
-    if not group:
+    if not entrecote.is_valid_group(group):
         return make_response('', 400)
 
     key = request.args.get('url')
@@ -38,7 +38,13 @@ def ferris(request, make_response):
 
     if key:
         metadata = request.args.get('metadata')
-        entry = entrecote.add(group, key, metadata)
+
+        try:
+            entry = entrecote.add(group, key, metadata)
+        except ValueError:
+            # The metadata is not valid JSON
+            return make_response('', 400)
+
         return make_response(str(entry['count']), 201)
 
     else:
@@ -78,4 +84,9 @@ def cleanup(request, make_response):
     if request.remote_addr != '127.0.0.1':
         return make_response('', 401)
 
-    return str(entrecote.truncate(request.args.get('group')))
+    group = request.args.get('group')
+
+    if not entrecote.is_valid_group(group):
+        return make_response('', 400)
+
+    return str(entrecote.truncate(group))
