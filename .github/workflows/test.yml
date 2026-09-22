@@ -1,7 +1,10 @@
 name: Run tests
 
 on:
-  push
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   test:
@@ -25,11 +28,11 @@ jobs:
         run: make install
 
       - name: Install wsgi dependency
-        if: ${{ contains(github.ref, 'mod-wsgi-standalone') }}
+        if: ${{ contains(github.head_ref || github.ref, 'mod-wsgi-standalone') }}
         run: make wsgi
 
       - name: Run development server
-        if: ${{ !contains(github.ref, 'mod-wsgi-standalone') }}
+        if: ${{ !contains(github.head_ref || github.ref, 'mod-wsgi-standalone') }}
         uses: JarvusInnovations/background-action@v2.0.0
         with:
           run: make server &
@@ -37,7 +40,7 @@ jobs:
           log-output-if: failure
 
       - name: Run wsgi server
-        if: ${{ contains(github.ref, 'mod-wsgi-standalone') }}
+        if: ${{ contains(github.head_ref || github.ref, 'mod-wsgi-standalone') }}
         uses: JarvusInnovations/background-action@v2.0.0
         with:
           run: make wsgi-server &
