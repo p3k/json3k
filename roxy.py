@@ -65,6 +65,44 @@ class ForbiddenUrl(Exception):
         self.status = status
 
 
+# An XML document’s declared encoding, which must be within its very first
+# bytes if present at all
+XML_ENCODING_PATTERN = re.compile(rb'^\s*<\?xml[^>]*\bencoding=["\']([^"\']+)["\']')
+
+
+def get_declared_charset(content_type, content):
+    # The transport-level charset, when given, takes priority over the
+    # document’s own encoding declaration
+    if content_type:
+        match = re.search(r';\s*charset=["\']?([^;"\'\s]+)', content_type, re.IGNORECASE)
+
+        if match:
+            return match.group(1)
+
+    match = XML_ENCODING_PATTERN.match(content[:200])
+
+    if match:
+        return match.group(1).decode('ascii', 'ignore')
+
+    return None
+
+
+def decode_content(content, content_type):
+    # Neither a bogus declared charset nor a feed that isn’t actually UTF-8
+    # should make this raise; Latin-1 never fails to decode, so it is always
+    # the last resort, not the first guess
+    for charset in (get_declared_charset(content_type, content), 'utf-8-sig'):
+        if not charset:
+            continue
+
+        try:
+            return content.decode(charset)
+        except (LookupError, UnicodeDecodeError):
+            pass
+
+    return content.decode('iso-8859-1')
+
+
 def check_scheme(request):
     # Rely on the request’s own URL parsing to avoid any mismatch with what is opened eventually
     if request.type not in ('http', 'https'):
@@ -196,10 +234,7 @@ def get_url(url, request_headers):
         if content_type and (content_type.startswith('text/') or
                              content_type.startswith('application/') or
                              content_type.endswith('xml')):
-            try:
-                content = content.decode('utf-8-sig')
-            except UnicodeDecodeError:
-                content = content.decode('iso-8859-1')
+            content = decode_content(content, content_type)
 
     return {
         'status': status,
