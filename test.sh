@@ -33,6 +33,12 @@ test "$(
   $curl --data-urlencode "url=$base_url/" "$base_url/roxy" | jq '.headers["X-Roxy-Status"]'
 )" = 403 || exit 1
 
+# Test that cookies set by the proxied server do not end up at the client
+# (httpbin.org returns the query parameters as response headers)
+test "$(
+  $curl --include --data-urlencode 'url=https://httpbin.org/response-headers?Set-Cookie=a%3Db' "$base_url/roxy" | grep --count --ignore-case '^set-cookie:'
+)" = 0 || exit 1
+
 # Test Ferris
 
 group=unit-tests
