@@ -2,26 +2,46 @@
 
 curl='curl --get --silent --verbose'
 base_url='http://localhost:8000'
-http_bin_url=https://httpbin.org/status/200
+
+# example.org is reserved by IANA for exactly this kind of use (RFC 2606),
+# so it is about as reliable a target as a free one gets
+test_url=https://example.org/
 
 # Test Roxy
 
-response=$($curl --data-urlencode "url=$http_bin_url" "$base_url/roxy")
+response=$($curl --data-urlencode "url=$test_url" "$base_url/roxy")
 
 # Test Roxy status
 test "$(
-  echo "$response" | jq '.headers["X-Roxy-Status"]'
+  printf %s "$response" | jq '.headers["X-Roxy-Status"]'
 )" = 200 || exit 1
 
 # Test Roxy URL
 test "$(
-  echo "$response" | jq --raw-output '.headers["X-Roxy-Url"]'
-)" = "$http_bin_url" || exit 1
+  printf %s "$response" | jq --raw-output '.headers["X-Roxy-Url"]'
+)" = "$test_url" || exit 1
 
 # Test JSONP output
 test "$(
-  $curl --data-urlencode "url=$http_bin_url" "$base_url/roxy?callback=evaluate" | sed --quiet '/^evaluate(.*)$/p'
+  $curl --data-urlencode "url=$test_url" "$base_url/roxy?callback=evaluate" | sed --quiet '/^evaluate(.*)$/p'
 )" || exit 1
+
+# Test Roxy restrictions (assumes `allow_private_hosts` is not set in `local.py`)
+
+test "$(
+  $curl --data-urlencode 'url=file:///etc/hostname' "$base_url/roxy" | jq '.headers["X-Roxy-Status"]'
+)" = 400 || exit 1
+
+test "$(
+  $curl --data-urlencode "url=$base_url/" "$base_url/roxy" | jq '.headers["X-Roxy-Status"]'
+)" = 403 || exit 1
+
+# Test that cookies set by the proxied server do not end up at the client
+# (postman-echo.com returns the query parameters as response headers, and
+# also sets a couple of its own, which this test should strip just the same)
+test "$(
+  $curl --include --data-urlencode 'url=https://postman-echo.com/response-headers?Set-Cookie=a%3Db' "$base_url/roxy" | grep --count --ignore-case '^set-cookie:'
+)" = 0 || exit 1
 
 # Test Ferris
 
@@ -43,13 +63,22 @@ response=$($curl --get "$base_url/ferris?group=$group")
 
 # The first item should have the added URL
 test "$(
-  echo "$response" | jq --raw-output .[0].url
+  printf %s "$response" | jq --raw-output .[0].url
 )" = 'http://host.dom' || exit 1
 
 # The first item should have 3 hits
 test "$(
-  echo "$response" | jq .[0].hits
+  printf %s "$response" | jq .[0].hits
 )" = 3 || exit 1
+
+# Groups are file names, so they must not point anywhere else
+for bad_group in '../unit-tests' '/tmp/unit-tests' 'unit.tests'; do
+  test "$(
+    $curl --output /dev/null --write-out '%{http_code}' \
+      --data-urlencode "group=$bad_group" --data-urlencode 'url=http://host.dom' \
+      "$base_url/ferris"
+  )" = 400 || exit 1
+done
 
 # Clean up
 $curl "$base_url/tasks/ferris?group=$group" > /dev/null

@@ -61,7 +61,7 @@ Content-Type: application/json
 {"content": "", "headers": {"X-Roxy-Status": 404, "X-Roxy-Error": "Not Found"}}
 ```
 
-In the HTTP headers sent by Roxy (not to be confused with those in the JSON payload) the additional `X-Roxy-*` headers mentioned above are included, too.
+In the HTTP headers sent by Roxy (not to be confused with those in the JSON payload) the additional `X-Roxy-*` headers mentioned above are included, too. Of the headers of the proxied response only `ETag` and `Last-Modified` are passed on in addition, since the others – `Set-Cookie` above all – would take effect on the origin of Roxy; the JSON payload still lists all of them. In the same spirit, the cookies sent by a client to Roxy are not forwarded to the requested server.
 
 Finally, in case of an error `X-Roxy-Error` contains a more or less descriptive error message, depending on the cause (HTTP status code, application issue etc.)
 
@@ -79,6 +79,32 @@ curl -G --data-urlencode 'url=https://unknown.domain' \
   }
 }
 ```
+
+### Restrictions
+
+Roxy only fetches `http` and `https` URLs; any other scheme (e.g. `file` or `ftp`) is refused with status `400`. Requests to addresses that are not publicly routable – loopback addresses like `localhost`, private networks, link-local addresses like `169.254.169.254` and so on – are refused with status `403`. Both checks apply to every redirect, too.
+
+```shell
+curl -G --data-urlencode 'url=http://localhost:8000/' 'http://localhost:8000/roxy'
+```
+
+```json
+{
+  "content": "",
+  "headers": {
+    "X-Roxy-Status": 403,
+    "X-Roxy-Error": "Requests to non-public addresses are not allowed"
+  }
+}
+```
+
+To allow such requests, e.g. for feeds in your intranet or when developing against a local server, create the optional file `local.py` next to `roxy.py` (it is ignored by Git):
+
+```python
+allow_private_hosts = True
+```
+
+The setting is read when the server starts, so restart it after changing the file. Other URL schemes remain refused.
 
 ### JSONP
 
@@ -110,6 +136,8 @@ Date: Sat, 21 Dec 2019 17:20:52 GMT
 ```
 
 The response body contains the current hit counter of the referrer URL.
+
+A group name may only consist of letters, digits, hyphens and underscores (up to 64 characters), since it is used as the name of the file the records are stored in. Requests with any other group name – as well as ones with metadata that is not valid JSON – are refused with status `400`.
 
 ```shell
 curl -G --data-urlencode 'url=http://other.server' 'http://localhost:8000/ferris?group=foo'
