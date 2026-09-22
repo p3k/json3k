@@ -23,6 +23,16 @@ test "$(
   $curl --data-urlencode "url=$http_bin_url" "$base_url/roxy?callback=evaluate" | sed --quiet '/^evaluate(.*)$/p'
 )" || exit 1
 
+# Test Roxy restrictions (assumes `allow_private_hosts` is not set in `local.py`)
+
+test "$(
+  $curl --data-urlencode 'url=file:///etc/hostname' "$base_url/roxy" | jq '.headers["X-Roxy-Status"]'
+)" = 400 || exit 1
+
+test "$(
+  $curl --data-urlencode "url=$base_url/" "$base_url/roxy" | jq '.headers["X-Roxy-Status"]'
+)" = 403 || exit 1
+
 # Test Ferris
 
 group=unit-tests
