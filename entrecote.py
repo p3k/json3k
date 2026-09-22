@@ -16,9 +16,13 @@
 # limitations under the License.
 
 import json
+import re
 
 from pathlib import Path
 from pupdb.core import PupDB
+
+# A group is used as file name, so it must not be able to point anywhere else
+GROUP_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,64}')
 
 
 def add(group, key, metadata=None):
@@ -46,7 +50,14 @@ def truncate(group, before_date=None):
     return db.truncate_db()
 
 
+def is_valid_group(group):
+    return isinstance(group, str) and GROUP_PATTERN.fullmatch(group) is not None
+
+
 def get_db(group):
+    if not is_valid_group(group):
+        raise ValueError('Invalid group name')
+
     db_path = Path('.entrecote')
 
     if not db_path.is_dir():
