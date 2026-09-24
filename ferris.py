@@ -22,10 +22,11 @@ from datetime import datetime, timedelta, timezone
 from gzip import compress
 from wsgiref.handlers import format_date_time
 
-# An arbitrary but generous sanity bound on the days query parameter, well
-# past entrecote's own keep_days default — keeps a stray or malicious value
-# (days=999999999) from being accepted as well-formed input
-MAX_DAYS = 365
+# Requesting more days than entrecote actually retains would just look
+# like an (incorrectly) empty stretch of time, so this mirrors
+# entrecote's own retention window rather than using a separate number
+# that could drift out of sync with it
+MAX_DAYS = entrecote.KEEP_DAYS
 
 def ferris(request, make_response):
     response_headers = {

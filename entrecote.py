@@ -27,6 +27,12 @@ GROUP_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,64}')
 
 DAY = 24 * 60 * 60
 
+# How long entries survive on disk at all. Exposed here rather than left as
+# a bare default value so ferris.py can cap the days request param at the
+# same number — asking for more than this is meaningless, since the data
+# simply isn't retained past it
+KEEP_DAYS = 90
+
 
 def add(group, key, metadata=None):
     db = get_db(group)
@@ -49,7 +55,7 @@ def get(group):
     return list(db.items())
 
 
-def get_recent(group, show_days=7, keep_days=30):
+def get_recent(group, show_days=7, keep_days=KEEP_DAYS):
     db = get_db(group)
     now = time.time()
 
