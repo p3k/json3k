@@ -55,22 +55,44 @@ def get_recent(group, show_days=7, keep_days=30):
     show_after = now - show_days * DAY
     keep_after = now - keep_days * DAY
     recent = []
+    kept = {}
 
-    # A single pass over everything: entries older than keep_days are
-    # gone for good (this is what replaces having to truncate the whole
-    # group by hand once it gets tedious to load), entries older than
-    # show_days but not yet that old are kept on disk but left out of
-    # the response, and anything within show_days is returned regardless
-    # of its hit count — a single hit yesterday is still worth showing.
-    # Entries written before this field existed have no last_seen at
-    # all, which sorts them as infinitely old, i.e. prune them now too.
-    for key, entry in db.items():
-        last_seen = entry.get('last_seen', 0)
+    # PupDB has no bulk operation at all: every one of its own get/set/
+    # remove calls reads and/or writes the *entire* file. Calling
+    # db.remove() once per stale key, as an earlier version of this
+    # function did, means one full read+write of the whole file per
+    # removed key — for a group with tens of thousands of stale entries
+    # (exactly the situation this function exists to clean up) that's
+    # catastrophically slow. Read the file exactly once, decide what
+    # survives, and — only if anything actually needs pruning — write
+    # the result back exactly once, under the same lock PupDB's own
+    # reads and writes use.
+    with db.process_lock:
+        with open(db.db_file_path, 'r') as db_file:
+            all_entries = json.loads(db_file.read())
 
-        if last_seen < keep_after:
-            db.remove(key)
-        elif last_seen >= show_after:
-            recent.append((key, entry))
+        for key, entry in all_entries.items():
+            last_seen = entry.get('last_seen', 0)
+
+            # Entries written before this field existed have no
+            # last_seen at all, which sorts them as infinitely old,
+            # i.e. prune them now too.
+            if last_seen < keep_after:
+                continue
+
+            kept[key] = entry
+
+            # Anything within show_days is returned regardless of its
+            # hit count — a single hit yesterday is still worth
+            # showing. Entries older than show_days but not yet as old
+            # as keep_days are kept on disk but left out of the
+            # response.
+            if last_seen >= show_after:
+                recent.append((key, entry))
+
+        if len(kept) != len(all_entries):
+            with open(db.db_file_path, 'w') as db_file:
+                db_file.write(json.dumps(kept))
 
     return recent
 
