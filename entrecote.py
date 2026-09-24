@@ -52,6 +52,11 @@ def get(group):
 def get_recent(group, show_days=7, keep_days=30):
     db = get_db(group)
     now = time.time()
+
+    # Nothing older than keep_days survives on disk at all, so asking for
+    # more than that would just look like an (incorrectly) empty stretch
+    # of time rather than actually returning more data
+    show_days = min(show_days, keep_days)
     show_after = now - show_days * DAY
     keep_after = now - keep_days * DAY
     recent = []

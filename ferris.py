@@ -22,6 +22,11 @@ from datetime import datetime, timedelta, timezone
 from gzip import compress
 from wsgiref.handlers import format_date_time
 
+# An arbitrary but generous sanity bound on the days query parameter, well
+# past entrecote's own keep_days default — keeps a stray or malicious value
+# (days=999999999) from being accepted as well-formed input
+MAX_DAYS = 365
+
 def ferris(request, make_response):
     response_headers = {
         'Content-Type': 'application/json',
@@ -48,6 +53,19 @@ def ferris(request, make_response):
         return make_response(str(entry['count']), 201)
 
     else:
+        days = request.args.get('days')
+
+        if days is not None:
+            try:
+                days = int(days)
+            except ValueError:
+                return make_response('', 400)
+
+            if not 1 <= days <= MAX_DAYS:
+                return make_response('', 400)
+
+        recent = entrecote.get_recent(group, days) if days is not None else entrecote.get_recent(group)
+
         referrers = sorted(
             map(
                 lambda entry: {
@@ -55,7 +73,7 @@ def ferris(request, make_response):
                     'hits': entry[1]['count'],
                     'metadata': entry[1]['metadata'] if 'metadata' in entry[1] else {}
                 },
-                entrecote.get_recent(group)
+                recent
             ),
             key=lambda entry: entry['hits'],
             reverse=True
