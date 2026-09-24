@@ -17,12 +17,15 @@
 
 import json
 import re
+import time
 
 from pathlib import Path
 from pupdb.core import PupDB
 
 # A group is used as file name, so it must not be able to point anywhere else
 GROUP_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,64}')
+
+DAY = 24 * 60 * 60
 
 
 def add(group, key, metadata=None):
@@ -36,6 +39,7 @@ def add(group, key, metadata=None):
         entry['metadata'] = json.loads(metadata) if type(metadata) == str else metadata
 
     entry['count'] += 1
+    entry['last_seen'] = time.time()
     db.set(key, entry)
     return entry
 
@@ -43,6 +47,32 @@ def add(group, key, metadata=None):
 def get(group):
     db = get_db(group)
     return list(db.items())
+
+
+def get_recent(group, show_days=7, keep_days=30):
+    db = get_db(group)
+    now = time.time()
+    show_after = now - show_days * DAY
+    keep_after = now - keep_days * DAY
+    recent = []
+
+    # A single pass over everything: entries older than keep_days are
+    # gone for good (this is what replaces having to truncate the whole
+    # group by hand once it gets tedious to load), entries older than
+    # show_days but not yet that old are kept on disk but left out of
+    # the response, and anything within show_days is returned regardless
+    # of its hit count — a single hit yesterday is still worth showing.
+    # Entries written before this field existed have no last_seen at
+    # all, which sorts them as infinitely old, i.e. prune them now too.
+    for key, entry in db.items():
+        last_seen = entry.get('last_seen', 0)
+
+        if last_seen < keep_after:
+            db.remove(key)
+        elif last_seen >= show_after:
+            recent.append((key, entry))
+
+    return recent
 
 
 def truncate(group, before_date=None):
@@ -84,6 +114,9 @@ if __name__ == '__main__':
 
     print('\nAll entries of group bar:')
     print(get('bar'))
+
+    print('\nRecent entries of group foo (just added, so all of them):')
+    print(get_recent('foo'))
 
     print('\nTruncating group foo:', truncate('foo'))
     print('Truncating group bar:', truncate('bar'))

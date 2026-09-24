@@ -55,7 +55,7 @@ def ferris(request, make_response):
                     'hits': entry[1]['count'],
                     'metadata': entry[1]['metadata'] if 'metadata' in entry[1] else {}
                 },
-                entrecote.get(group)
+                entrecote.get_recent(group)
             ),
             key=lambda entry: entry['hits'],
             reverse=True
