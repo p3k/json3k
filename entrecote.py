@@ -17,12 +17,21 @@
 
 import json
 import re
+import time
 
 from pathlib import Path
 from pupdb.core import PupDB
 
 # A group is used as file name, so it must not be able to point anywhere else
 GROUP_PATTERN = re.compile(r'[A-Za-z0-9_-]{1,64}')
+
+DAY = 24 * 60 * 60
+
+# How long entries survive on disk at all. Exposed here rather than left as
+# a bare default value so ferris.py can cap the days request param at the
+# same number — asking for more than this is meaningless, since the data
+# simply isn't retained past it
+KEEP_DAYS = 90
 
 
 def add(group, key, metadata=None):
@@ -36,6 +45,7 @@ def add(group, key, metadata=None):
         entry['metadata'] = json.loads(metadata) if type(metadata) == str else metadata
 
     entry['count'] += 1
+    entry['last_seen'] = time.time()
     db.set(key, entry)
     return entry
 
@@ -43,6 +53,59 @@ def add(group, key, metadata=None):
 def get(group):
     db = get_db(group)
     return list(db.items())
+
+
+def get_recent(group, show_days=7, keep_days=KEEP_DAYS):
+    db = get_db(group)
+    now = time.time()
+
+    # Nothing older than keep_days survives on disk at all, so asking for
+    # more than that would just look like an (incorrectly) empty stretch
+    # of time rather than actually returning more data
+    show_days = min(show_days, keep_days)
+    show_after = now - show_days * DAY
+    keep_after = now - keep_days * DAY
+    recent = []
+    kept = {}
+
+    # PupDB has no bulk operation at all: every one of its own get/set/
+    # remove calls reads and/or writes the *entire* file. Calling
+    # db.remove() once per stale key, as an earlier version of this
+    # function did, means one full read+write of the whole file per
+    # removed key — for a group with tens of thousands of stale entries
+    # (exactly the situation this function exists to clean up) that's
+    # catastrophically slow. Read the file exactly once, decide what
+    # survives, and — only if anything actually needs pruning — write
+    # the result back exactly once, under the same lock PupDB's own
+    # reads and writes use.
+    with db.process_lock:
+        with open(db.db_file_path, 'r') as db_file:
+            all_entries = json.loads(db_file.read())
+
+        for key, entry in all_entries.items():
+            last_seen = entry.get('last_seen', 0)
+
+            # Entries written before this field existed have no
+            # last_seen at all, which sorts them as infinitely old,
+            # i.e. prune them now too.
+            if last_seen < keep_after:
+                continue
+
+            kept[key] = entry
+
+            # Anything within show_days is returned regardless of its
+            # hit count — a single hit yesterday is still worth
+            # showing. Entries older than show_days but not yet as old
+            # as keep_days are kept on disk but left out of the
+            # response.
+            if last_seen >= show_after:
+                recent.append((key, entry))
+
+        if len(kept) != len(all_entries):
+            with open(db.db_file_path, 'w') as db_file:
+                db_file.write(json.dumps(kept))
+
+    return recent
 
 
 def truncate(group, before_date=None):
@@ -84,6 +147,9 @@ if __name__ == '__main__':
 
     print('\nAll entries of group bar:')
     print(get('bar'))
+
+    print('\nRecent entries of group foo (just added, so all of them):')
+    print(get_recent('foo'))
 
     print('\nTruncating group foo:', truncate('foo'))
     print('Truncating group bar:', truncate('bar'))

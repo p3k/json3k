@@ -22,6 +22,12 @@ from datetime import datetime, timedelta, timezone
 from gzip import compress
 from wsgiref.handlers import format_date_time
 
+# Requesting more days than entrecote actually retains would just look
+# like an (incorrectly) empty stretch of time, so this mirrors
+# entrecote's own retention window rather than using a separate number
+# that could drift out of sync with it
+MAX_DAYS = entrecote.KEEP_DAYS
+
 def ferris(request, make_response):
     response_headers = {
         'Content-Type': 'application/json',
@@ -48,6 +54,19 @@ def ferris(request, make_response):
         return make_response(str(entry['count']), 201)
 
     else:
+        days = request.args.get('days')
+
+        if days is not None:
+            try:
+                days = int(days)
+            except ValueError:
+                return make_response('', 400)
+
+            if not 1 <= days <= MAX_DAYS:
+                return make_response('', 400)
+
+        recent = entrecote.get_recent(group, days) if days is not None else entrecote.get_recent(group)
+
         referrers = sorted(
             map(
                 lambda entry: {
@@ -55,7 +74,7 @@ def ferris(request, make_response):
                     'hits': entry[1]['count'],
                     'metadata': entry[1]['metadata'] if 'metadata' in entry[1] else {}
                 },
-                entrecote.get(group)
+                recent
             ),
             key=lambda entry: entry['hits'],
             reverse=True

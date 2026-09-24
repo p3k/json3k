@@ -80,5 +80,31 @@ for bad_group in '../unit-tests' '/tmp/unit-tests' 'unit.tests'; do
   )" = 400 || exit 1
 done
 
+# The days query param overrides how far back referrers are shown
+
+response=$($curl --get --data-urlencode 'days=1' "$base_url/ferris?group=$group")
+
+test "$(
+  printf %s "$response" | jq .[0].hits
+)" = 3 || exit 1
+
+# The maximum mirrors entrecote's own retention window (90 days) — right
+# at that boundary is still valid, one day past it is not
+test "$(
+  $curl --output /dev/null --write-out '%{http_code}' \
+    --data-urlencode 'days=90' \
+    "$base_url/ferris?group=$group"
+)" = 200 || exit 1
+
+# Out of range or non-numeric values are rejected rather than silently
+# falling back to the default
+for bad_days in 0 -1 91 abc; do
+  test "$(
+    $curl --output /dev/null --write-out '%{http_code}' \
+      --data-urlencode "days=$bad_days" \
+      "$base_url/ferris?group=$group"
+  )" = 400 || exit 1
+done
+
 # Clean up
 $curl "$base_url/tasks/ferris?group=$group" > /dev/null
