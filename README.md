@@ -6,7 +6,7 @@ For Python3 / [mod_wsgi](https://modwsgi.readthedocs.io).
 # A virtual Python environment is automatically created in the .venv directory
 $ make && make server
 # — or —
-$ make wgsi && make wsgi-server
+$ make wsgi && make wsgi-server
 ```
 
 > 💡 [Integration with Google AppEngine](https://github.com/p3k/json3k/tree/gae) is no longer supported.
@@ -150,7 +150,7 @@ curl -G --data-urlencode 'url=http://other.server' 'http://localhost:8000/ferris
 3
 ```
 
-Sending a request without a URL, only with a group (which is required), Ferris returns the list of referrers recorded so far:
+Sending a request without a URL, only with a group (which is required), Ferris returns the referrers seen recently, most hits first:
 
 ```shell
 curl 'http://localhost:8000/ferris?group=foo'
@@ -161,16 +161,20 @@ curl 'http://localhost:8000/ferris?group=foo'
   {
     "url": "http://other.server",
     "hits": 3,
-    "date": 1576949054453598,
     "metadata": {}
   },
   {
     "url": "http://host.dom",
     "hits": 1,
-    "date": 1576948808457560,
     "metadata": {}
   }
 ]
+```
+
+"Recently" defaults to the last 7 days, regardless of hit count — a single hit yesterday is still shown. An optional `days` query param overrides that window, up to a maximum of 90 (matching how long entries are retained at all — see below); anything outside `1`–`90`, or non-numeric, is refused with status `400`.
+
+```shell
+curl -G --data-urlencode 'days=30' 'http://localhost:8000/ferris?group=foo'
 ```
 
 It is possible to add metadata to a referrer simply by appending it JSON-encoded to the ping URL:
@@ -189,7 +193,6 @@ curl 'http://localhost:8000/ferris?group=meta'
   {
     "url": "http://host.dom",
     "hits": 1,
-    "date": 1578296164821.103,
     "metadata": {
       "foo": ["bar", "baz"]
     }
@@ -204,12 +207,14 @@ curl 'http://localhost:8000/ferris?group=foo&callback=evaluate'
 ```
 
 ```js
-evaluate([{"url": "http://other.server", "hits": 3, "date": 1576949054453598}, {"url": "http://host.dom", "hits": 1, "date": 1576948808457560}])
+evaluate([{"url": "http://other.server", "hits": 3, "metadata": {}}, {"url": "http://host.dom", "hits": 1, "metadata": {}}])
 ```
 
-### Cleanup
+### Retention
 
-There is a task URL defined to delete all records of a group to reduce the necessary amount of data storage. This is only allowed from localhost and should be called from a cronjob:
+Entries not seen in 90 days are pruned automatically — permanently deleted from disk — the next time the group is requested; there's no separate cleanup step to run. This is what actually keeps `.entrecote/`'s per-group JSON files bounded in size, since `add()` on its own never removes anything.
+
+For a full, immediate wipe of a group instead of waiting on that 90-day window, there's still a task URL, allowed only from localhost (e.g. from a cronjob):
 
 ```shell
 curl 'http://localhost:8000/tasks/ferris?group=foo'
@@ -218,29 +223,50 @@ True
 
 ## Deployment
 
-Run `make config` to output the corresponding Apache configuration lines:
+The actual push of this code to a server — rsync plus the swap-in/reload sequence — is handled by [p3k/rss-box](https://github.com/p3k/rss-box)'s deploy tooling (`deploy.sh`'s `deploy-services` case, run via `npm run deploy:services` or the `Deploy (Stage)` workflow), since that's where the app embedding this service actually lives. What follows here is purely the Apache/WSGI side: how the deployed `wsgi.py` gets served at all.
+
+```apache
+WSGIRestrictEmbedded On
+WSGISocketPrefix /var/run/apache2/wsgi
+
+WSGIDaemonProcess json3k python-home=/path/to/.venv home=/path/to/json3k
+
+WSGIScriptAlias /json3k /path/to/json3k/wsgi.py process-group=json3k
+
+<Location /json3k>
+   WSGIApplicationGroup %{GLOBAL}
+   Require all granted
+</Location>
+```
+
+`python-home` just needs a venv whose Python matches whatever `LoadModule wsgi_module` below was built against — it doesn't need `mod-wsgi-standalone` installed itself (`make install` deliberately excludes it; only `make wsgi`/`make wsgi-server` do).
+
+### `LoadModule`
+
+Prefer your distro's own mod_wsgi package (e.g. `apt install libapache2-mod-wsgi-py3` on Debian/Ubuntu) over a venv-bundled `.so`:
+
+```apache
+LoadModule wsgi_module /usr/lib/apache2/modules/mod_wsgi.so
+```
+
+A distro package is built by the same pipeline as the distro's own Apache and Python, so it's guaranteed to match both — a venv-installed one has no such guarantee and has to be tracked by hand as the system's Python version changes over time. Confirm the actual installed path first (`dpkg -L libapache2-mod-wsgi-py3 | grep '\.so$'`) rather than assuming the one above.
+
+If you do need a venv-bundled build instead (e.g. a non-package-managed system, or a Python version the distro doesn't ship), `make wsgi-config` prints the corresponding lines for whatever's in `.venv`:
 
 ```shell
-$ make config
+$ make wsgi-config
 mod_wsgi-express module-config
-LoadModule wsgi_module "/path/to/.venv/json3k/lib/python3.10/site-packages/mod_wsgi/server/mod_wsgi-py310.cpython-310-x86_64-linux-gnu.so"
-WSGIPythonHome "/path/to/.venv/json3k"
+LoadModule wsgi_module "/path/to/.venv/lib/python3.10/site-packages/mod_wsgi/server/mod_wsgi-py310.cpython-310-x86_64-linux-gnu.so"
+WSGIPythonHome "/path/to/.venv"
 ```
 
-In current Apache installations, the `LoadModule` line goes into `/etc/apache2/mods-enabled/wsgi.load`, and the other one into `/etc/apache2/mods-enabled/wsgi.conf`.
+In current Apache installations, the `LoadModule` line goes into `/etc/apache2/mods-enabled/wsgi.load`.
 
-You might also need to modify the `WSGISocketPrefix` setting, so Apache does not complain about [insufficient permission to create the socket](https://modwsgi.readthedocs.io/en/develop/user-guides/configuration-issues.html#location-of-unix-sockets):
+You might also need to modify the `WSGISocketPrefix` setting, so Apache does not complain about [insufficient permission to create the socket](https://modwsgi.readthedocs.io/en/develop/user-guides/configuration-issues.html#location-of-unix-sockets).
 
-```apache2
-WSGISocketPrefix /var/run/apache2/wsgi
-```
+### Permissions
 
-In case of multiple applications are being run, [WSIGʼs “daemon” mode](https://modwsgi.readthedocs.io/en/develop/user-guides/configuration-guidelines.html#defining-process-groups) needs to be used:
-
-```apache2
-WSGIDaemonProcess json3k python-home=/path/to/.venv/json3k home=/path/to/json3k
-WSGIScriptAlias /json3k /path/to/json3k/wsgi.py process-group=json3k
-```
+`.entrecote/` (Ferris's referrer database — see above) is the one path this app writes to at runtime, both the JSON files themselves and the lock file `filelock`/PupDB creates to guard concurrent access. Whatever user Apache's WSGI daemon process runs as needs write access there specifically, on top of read access to everything else.
 
 ---
 
