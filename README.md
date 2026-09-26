@@ -5,7 +5,7 @@ For Python3 / [mod_wsgi](https://modwsgi.readthedocs.io).
 ```shell
 # A virtual Python environment is automatically created in the .venv directory
 $ make && make server
-# — or —
+# – or –
 $ make wsgi && make wsgi-server
 ```
 
@@ -171,7 +171,7 @@ curl 'http://localhost:8000/ferris?group=foo'
 ]
 ```
 
-"Recently" defaults to the last 7 days, regardless of hit count — a single hit yesterday is still shown. An optional `days` query param overrides that window, up to a maximum of 90 (matching how long entries are retained at all — see below); anything outside `1`–`90`, or non-numeric, is refused with status `400`.
+"Recently" defaults to the last 7 days, regardless of hit count – a single hit yesterday is still shown. An optional `days` query param overrides that window, up to a maximum of 90 (matching how long entries are retained at all – see below); anything outside `1`–`90`, or non-numeric, is refused with status `400`.
 
 ```shell
 curl -G --data-urlencode 'days=30' 'http://localhost:8000/ferris?group=foo'
@@ -212,9 +212,9 @@ evaluate([{"url": "http://other.server", "hits": 3, "metadata": {}}, {"url": "ht
 
 ### Retention
 
-Entries not seen in 90 days are pruned automatically — permanently deleted from disk — the next time the group is requested; there's no separate cleanup step to run. This is what actually keeps `.entrecote/`'s per-group JSON files bounded in size, since `add()` on its own never removes anything.
+Entries not seen in 90 days are pruned automatically – permanently deleted from disk – the next time the group is requested; there’s no separate cleanup step to run. This is what actually keeps `.entrecote/`'s per-group JSON files bounded in size, since `add()` on its own never removes anything.
 
-For a full, immediate wipe of a group instead of waiting on that 90-day window, there's still a task URL, allowed only from localhost (e.g. from a cronjob):
+For a full, immediate wipe of a group instead of waiting on that 90-day window, there’s still a task URL, allowed only from localhost (e.g. from a cronjob):
 
 ```shell
 curl 'http://localhost:8000/tasks/ferris?group=foo'
@@ -223,7 +223,7 @@ True
 
 ## Deployment
 
-The actual push of this code to a server — rsync plus the swap-in/reload sequence — is handled by [p3k/rss-box](https://github.com/p3k/rss-box)'s deploy tooling (`deploy.sh`'s `deploy-services` case, run via `npm run deploy:services` or the `Deploy (Stage)` workflow), since that's where the app embedding this service actually lives. What follows here is purely the Apache/WSGI side: how the deployed `wsgi.py` gets served at all.
+The actual push of this code to a server – rsync plus the swap-in/reload sequence – is handled by [p3k/rss-box](https://github.com/p3k/rss-box)'s deploy tooling (`deploy.sh`'s `deploy-services` case, run via `npm run deploy:services` or the `Deploy (Stage)` workflow), since that’s where the app embedding this service actually lives. What follows here is purely the Apache/WSGI side: how the deployed `wsgi.py` gets served at all.
 
 ```apache
 WSGIRestrictEmbedded On
@@ -239,19 +239,19 @@ WSGIScriptAlias /json3k /path/to/json3k/wsgi.py process-group=json3k
 </Location>
 ```
 
-`python-home` just needs a venv whose Python matches whatever `LoadModule wsgi_module` below was built against — it doesn't need `mod-wsgi-standalone` installed itself (`make install` deliberately excludes it; only `make wsgi`/`make wsgi-server` do).
+`python-home` just needs a venv whose Python matches whatever `LoadModule wsgi_module` below was built against – it doesn’t need `mod-wsgi-standalone` installed itself (`make install` deliberately excludes it; only `make wsgi`/`make wsgi-server` do).
 
 ### `LoadModule`
 
-Prefer your distro's own mod_wsgi package (e.g. `apt install libapache2-mod-wsgi-py3` on Debian/Ubuntu) over a venv-bundled `.so`:
+Prefer your distro’s own mod_wsgi package (e.g. `apt install libapache2-mod-wsgi-py3` on Debian/Ubuntu) over a venv-bundled `.so`:
 
 ```apache
 LoadModule wsgi_module /usr/lib/apache2/modules/mod_wsgi.so
 ```
 
-A distro package is built by the same pipeline as the distro's own Apache and Python, so it's guaranteed to match both — a venv-installed one has no such guarantee and has to be tracked by hand as the system's Python version changes over time. Confirm the actual installed path first (`dpkg -L libapache2-mod-wsgi-py3 | grep '\.so$'`) rather than assuming the one above.
+A distro package is built by the same pipeline as the distro’s own Apache and Python, so it’s guaranteed to match both – a venv-installed one has no such guarantee and has to be tracked by hand as the system’s Python version changes over time. Confirm the actual installed path first (`dpkg -L libapache2-mod-wsgi-py3 | grep '\.so$'`) rather than assuming the one above.
 
-If you do need a venv-bundled build instead (e.g. a non-package-managed system, or a Python version the distro doesn't ship), `make wsgi-config` prints the corresponding lines for whatever's in `.venv`:
+If you do need a venv-bundled build instead (e.g. a non-package-managed system, or a Python version the distro doesn’t ship), `make wsgi-config` prints the corresponding lines for whatever’s in `.venv`:
 
 ```shell
 $ make wsgi-config
@@ -266,7 +266,7 @@ You might also need to modify the `WSGISocketPrefix` setting, so Apache does not
 
 ### Permissions
 
-`.entrecote/` (Ferris's referrer database — see above) is the one path this app writes to at runtime, both the JSON files themselves and the lock file `filelock`/PupDB creates to guard concurrent access. Whatever user Apache's WSGI daemon process runs as needs write access there specifically, on top of read access to everything else.
+`.entrecote/` (Ferris’s referrer database – see above) is the one path this app writes to at runtime, both the JSON files themselves and the lock file `filelock`/PupDB creates to guard concurrent access. Whatever user Apache’s WSGI daemon process runs as needs write access there specifically, on top of read access to everything else.
 
 ---
 
