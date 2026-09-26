@@ -20,6 +20,8 @@ import re
 import time
 
 from pathlib import Path
+from threading import Thread
+
 from pupdb.core import PupDB
 
 # A group is used as file name, so it must not be able to point anywhere else
@@ -29,24 +31,37 @@ DAY = 24 * 60 * 60
 
 # How long entries survive on disk at all. Exposed here rather than left as
 # a bare default value so ferris.py can cap the days request param at the
-# same number — asking for more than this is meaningless, since the data
-# simply isn't retained past it
+# same number – asking for more than this is meaningless, since the data
+# simply isn’t retained past it
 KEEP_DAYS = 90
 
 
 def add(group, key, metadata=None):
     db = get_db(group)
-    entry = db.get(key)
+    key = str(key)
 
-    if not entry:
-        entry = { 'count': 0 }
+    # db.get()/db.set() each lock, read or write, and unlock on their own –
+    # calling them separately leaves a window between them where a
+    # concurrent request for the same key reads the same count this one
+    # just did, and both then write back the same incremented value,
+    # losing one hit. Held across the whole read-modify-write instead,
+    # exactly like get_recent() already does for its own reasons.
+    with db.process_lock:
+        with open(db.db_file_path, 'r') as db_file:
+            database = json.loads(db_file.read())
 
-    if metadata:
-        entry['metadata'] = json.loads(metadata) if type(metadata) == str else metadata
+        entry = database.get(key) or { 'count': 0 }
 
-    entry['count'] += 1
-    entry['last_seen'] = time.time()
-    db.set(key, entry)
+        if metadata:
+            entry['metadata'] = json.loads(metadata) if type(metadata) == str else metadata
+
+        entry['count'] += 1
+        entry['last_seen'] = time.time()
+        database[key] = entry
+
+        with open(db.db_file_path, 'w') as db_file:
+            db_file.write(json.dumps(database))
+
     return entry
 
 
@@ -72,11 +87,11 @@ def get_recent(group, show_days=7, keep_days=KEEP_DAYS):
     # remove calls reads and/or writes the *entire* file. Calling
     # db.remove() once per stale key, as an earlier version of this
     # function did, means one full read+write of the whole file per
-    # removed key — for a group with tens of thousands of stale entries
-    # (exactly the situation this function exists to clean up) that's
+    # removed key – for a group with tens of thousands of stale entries
+    # (exactly the situation this function exists to clean up) that’s
     # catastrophically slow. Read the file exactly once, decide what
-    # survives, and — only if anything actually needs pruning — write
-    # the result back exactly once, under the same lock PupDB's own
+    # survives, and – only if anything actually needs pruning – write
+    # the result back exactly once, under the same lock PupDB’s own
     # reads and writes use.
     with db.process_lock:
         with open(db.db_file_path, 'r') as db_file:
@@ -94,7 +109,7 @@ def get_recent(group, show_days=7, keep_days=KEEP_DAYS):
             kept[key] = entry
 
             # Anything within show_days is returned regardless of its
-            # hit count — a single hit yesterday is still worth
+            # hit count – a single hit yesterday is still worth
             # showing. Entries older than show_days but not yet as old
             # as keep_days are kept on disk but left out of the
             # response.
@@ -153,3 +168,26 @@ if __name__ == '__main__':
 
     print('\nTruncating group foo:', truncate('foo'))
     print('Truncating group bar:', truncate('bar'))
+
+    # Regression check for a lost-update race: db.get()/db.set() each
+    # lock and unlock on their own, so calling them as two separate steps
+    # let concurrent hits on the same key read the same starting count
+    # and overwrite each other’s increment instead of adding up
+    hits = 50
+    # A previous run of this same script may have left this group
+    # non-empty if it failed before reaching the truncate() below
+    truncate('race')
+    print(f'\nAdding {hits} concurrent hits to the same key in group race:')
+    threads = [Thread(target=add, args=('race', 'key')) for _ in range(hits)]
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    count = get_db('race').get('key')['count']
+    print('count:', count)
+    assert count == hits, f'Expected {hits}, got {count} instead – add() lost concurrent hits'
+
+    truncate('race')
