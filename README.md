@@ -223,13 +223,21 @@ True
 
 ## Deployment
 
-The actual push of this code to a server — rsync plus the swap-in/reload sequence — is handled by [p3k/rss-box](https://github.com/p3k/rss-box)'s deploy tooling (`deploy.sh`'s `deploy-services` case, run via `npm run deploy:services` or the `Deploy (Stage)` workflow), since that's where the app embedding this service actually lives. What follows here is purely the Apache/WSGI side: how the deployed `wsgi.py` gets served at all.
+The actual push of this code to a server – rsync plus the swap-in/reload sequence – is handled by [p3k/rss-box](https://github.com/p3k/rss-box)'s deploy tooling (`deploy.sh`'s `deploy-services` case, run via `npm run deploy:services` or the `Deploy (Stage)` workflow), since that’s where the app embedding this service actually lives. What follows here is purely the Apache/WSGI side: how the deployed `wsgi.py` gets served at all.
 
-```apache
+`make apache-config`, run from wherever this checkout actually lives, prints everything needed – paths, the process group, and (see below) the `LoadModule` line – ready to paste into a site config:
+
+```shell
+$ make apache-config
+LoadModule wsgi_module /usr/lib/apache2/modules/mod_wsgi.so
 WSGIRestrictEmbedded On
 WSGISocketPrefix /var/run/apache2/wsgi
 
-WSGIDaemonProcess json3k python-home=/path/to/.venv home=/path/to/json3k
+WSGIDaemonProcess json3k \
+  python-home=/path/to/json3k/.venv \
+  home=/path/to/json3k \
+  processes=4 \
+  threads=15
 
 WSGIScriptAlias /json3k /path/to/json3k/wsgi.py process-group=json3k
 
@@ -239,30 +247,17 @@ WSGIScriptAlias /json3k /path/to/json3k/wsgi.py process-group=json3k
 </Location>
 ```
 
-`python-home` just needs a venv whose Python matches whatever `LoadModule wsgi_module` below was built against — it doesn't need `mod-wsgi-standalone` installed itself (`make install` deliberately excludes it; only `make wsgi`/`make wsgi-server` do).
+`python-home` just needs a venv whose Python matches whatever `LoadModule wsgi_module` was built against – it doesn’t need `mod-wsgi-standalone` installed itself (`make install` deliberately excludes it; only `make wsgi`/`make wsgi-server` do).
 
 ### `LoadModule`
 
-Prefer your distro's own mod_wsgi package (e.g. `apt install libapache2-mod-wsgi-py3` on Debian/Ubuntu) over a venv-bundled `.so`:
+Prefer your distro’s own mod_wsgi package (e.g. `apt install libapache2-mod-wsgi-py3` on Debian/Ubuntu) over a venv-bundled `.so`, since it’s built by the same pipeline as the distro’s own Apache and Python – a venv-installed one has no such guarantee and has to be tracked by hand as the system’s Python version changes over time. `make apache-config` gets this line from `make apache-wsgi-config`, which reads it directly from the installed package (Debian/Ubuntu-specific, matching the package name it queries) rather than guessing – reach for that on its own if you only need the module line, without the rest of the config.
 
-```apache
-LoadModule wsgi_module /usr/lib/apache2/modules/mod_wsgi.so
-```
+In current Apache installations, this line goes into `/etc/apache2/mods-enabled/wsgi.load`.
 
-A distro package is built by the same pipeline as the distro's own Apache and Python, so it's guaranteed to match both — a venv-installed one has no such guarantee and has to be tracked by hand as the system's Python version changes over time. Confirm the actual installed path first (`dpkg -L libapache2-mod-wsgi-py3 | grep '\.so$'`) rather than assuming the one above.
+`wsgi`/`wsgi-server` are a separate, unrelated setup: they run this service under mod_wsgi’s own bundled, private Apache instead, with no relationship to whatever Apache/Python is actually installed on the system. They exist purely for CI – when Renovate bumps the `mod-wsgi-standalone` dependency itself, the test workflow switches from the plain Flask dev server to `wsgi-server` specifically to verify that bump still runs correctly under real mod_wsgi. Not a fallback deployment option, and never a source for a real Apache’s `LoadModule` line – loading a venv-bundled `.so` into a real, separately-installed Apache risks an ABI mismatch.
 
-If you do need a venv-bundled build instead (e.g. a non-package-managed system, or a Python version the distro doesn't ship), `make wsgi-config` prints the corresponding lines for whatever's in `.venv`:
-
-```shell
-$ make wsgi-config
-mod_wsgi-express module-config
-LoadModule wsgi_module "/path/to/.venv/lib/python3.10/site-packages/mod_wsgi/server/mod_wsgi-py310.cpython-310-x86_64-linux-gnu.so"
-WSGIPythonHome "/path/to/.venv"
-```
-
-In current Apache installations, the `LoadModule` line goes into `/etc/apache2/mods-enabled/wsgi.load`.
-
-You might also need to modify the `WSGISocketPrefix` setting, so Apache does not complain about [insufficient permission to create the socket](https://modwsgi.readthedocs.io/en/develop/user-guides/configuration-issues.html#location-of-unix-sockets).
+`WSGISocketPrefix` (`/var/run/apache2/wsgi` in the config above) may need adjusting if that directory is not writable by Apache’s own user, causing an [insufficient permission to create the socket](https://modwsgi.readthedocs.io/en/develop/user-guides/configuration-issues.html#location-of-unix-sockets) error.
 
 ### Permissions
 
