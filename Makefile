@@ -1,6 +1,6 @@
 objects = entrecote.py ferris.py main.py roxy.py wsgi.py
 
-.PHONY: apache-config clean full-install install server wsgi wsgi-server
+.PHONY: apache-config clean full-install install git-hooks server wsgi wsgi-server
 
 .entrecote:
 	mkdir -p .entrecote
@@ -8,7 +8,10 @@ objects = entrecote.py ferris.py main.py roxy.py wsgi.py
 .venv:
 	python3 -m venv .venv
 
-install: .entrecote .venv requirements.txt
+git-hooks:
+	git config core.hooksPath .git-hooks
+
+install: .entrecote .venv git-hooks requirements.txt
 	.venv/bin/pip install `grep --invert-match mod-wsgi-standalone requirements.txt`
 
 server: .venv/bin/python3 $(objects)

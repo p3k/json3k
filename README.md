@@ -5,7 +5,7 @@ For Python3 / [mod_wsgi](https://modwsgi.readthedocs.io).
 ```shell
 # A virtual Python environment is automatically created in the .venv directory
 $ make && make server
-# — or —
+# – or –
 $ make wsgi && make wsgi-server
 ```
 
@@ -171,7 +171,7 @@ curl 'http://localhost:8000/ferris?group=foo'
 ]
 ```
 
-"Recently" defaults to the last 7 days, regardless of hit count — a single hit yesterday is still shown. An optional `days` query param overrides that window, up to a maximum of 90 (matching how long entries are retained at all — see below); anything outside `1`–`90`, or non-numeric, is refused with status `400`.
+"Recently" defaults to the last 7 days, regardless of hit count – a single hit yesterday is still shown. An optional `days` query param overrides that window, up to a maximum of 90 (matching how long entries are retained at all – see below); anything outside `1`–`90`, or non-numeric, is refused with status `400`.
 
 ```shell
 curl -G --data-urlencode 'days=30' 'http://localhost:8000/ferris?group=foo'
@@ -212,9 +212,9 @@ evaluate([{"url": "http://other.server", "hits": 3, "metadata": {}}, {"url": "ht
 
 ### Retention
 
-Entries not seen in 90 days are pruned automatically — permanently deleted from disk — the next time the group is requested; there's no separate cleanup step to run. This is what actually keeps `.entrecote/`'s per-group JSON files bounded in size, since `add()` on its own never removes anything.
+Entries not seen in 90 days are pruned automatically – permanently deleted from disk – the next time the group is requested; there’s no separate cleanup step to run. This is what actually keeps Entrecote’s per-group JSON files bounded in size, since `add()` on its own never removes anything.
 
-For a full, immediate wipe of a group instead of waiting on that 90-day window, there's still a task URL, allowed only from localhost (e.g. from a cronjob):
+For a full, immediate wipe of a group instead of waiting on that 90-day window, there’s still a task URL, allowed only from localhost (e.g. from a cronjob):
 
 ```shell
 curl 'http://localhost:8000/tasks/ferris?group=foo'
@@ -261,7 +261,7 @@ In current Apache installations, this line goes into `/etc/apache2/mods-enabled/
 
 ### Permissions
 
-`.entrecote/` (Ferris's referrer database — see above) is the one path this app writes to at runtime, both the JSON files themselves and the lock file `filelock`/PupDB creates to guard concurrent access. Whatever user Apache's WSGI daemon process runs as needs write access there specifically, on top of read access to everything else.
+`.entrecote/` (Ferris’s referrer database – see above) is the one path this app writes to at runtime, both the JSON files themselves and the lock file `filelock`/PupDB creates to guard concurrent access. Whatever user Apache’s WSGI daemon process runs as needs write access there specifically, on top of read access to everything else.
 
 ---
 
