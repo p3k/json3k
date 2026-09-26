@@ -212,7 +212,7 @@ evaluate([{"url": "http://other.server", "hits": 3, "metadata": {}}, {"url": "ht
 
 ### Retention
 
-Entries not seen in 90 days are pruned automatically – permanently deleted from disk – the next time the group is requested; there’s no separate cleanup step to run. This is what actually keeps `.entrecote/`'s per-group JSON files bounded in size, since `add()` on its own never removes anything.
+Entries not seen in 90 days are pruned automatically – permanently deleted from disk – the next time the group is requested; there’s no separate cleanup step to run. This is what actually keeps Entrecote’s per-group JSON files bounded in size, since `add()` on its own never removes anything.
 
 For a full, immediate wipe of a group instead of waiting on that 90-day window, there’s still a task URL, allowed only from localhost (e.g. from a cronjob):
 
