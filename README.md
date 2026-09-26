@@ -251,7 +251,7 @@ WSGIScriptAlias /json3k /path/to/json3k/wsgi.py process-group=json3k
 
 ### `LoadModule`
 
-Prefer your distro’s own mod_wsgi package (e.g. `apt install libapache2-mod-wsgi-py3` on Debian/Ubuntu) over a venv-bundled `.so`, since it’s built by the same pipeline as the distro’s own Apache and Python – a venv-installed one has no such guarantee and has to be tracked by hand as the system’s Python version changes over time. `make apache-config` gets this line from `make apache-wsgi-config`, which reads it directly from the installed package (Debian/Ubuntu-specific, matching the package name it queries) rather than guessing – reach for that on its own if you only need the module line, without the rest of the config.
+Prefer your distro’s own mod_wsgi package (e.g. `apt install libapache2-mod-wsgi-py3` on Debian/Ubuntu) over a venv-bundled `.so`, since it’s built by the same pipeline as the distro’s own Apache and Python – a venv-installed one has no such guarantee and has to be tracked by hand as the system’s Python version changes over time. `make apache-config` reads the actual installed path directly from the package rather than guessing.
 
 In current Apache installations, this line goes into `/etc/apache2/mods-enabled/wsgi.load`.
 
