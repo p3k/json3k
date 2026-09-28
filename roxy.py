@@ -18,9 +18,10 @@
 import json
 import re
 import traceback
+import zlib
 
 from datetime import datetime, timedelta, timezone
-from gzip import compress, decompress
+from gzip import compress
 from http.client import HTTPConnection, HTTPSConnection
 from io import StringIO
 from ipaddress import ip_address
@@ -63,6 +64,14 @@ class ForbiddenUrl(Exception):
     def __init__(self, status, message):
         super().__init__(message)
         self.status = status
+
+
+# Bounds how much of another server’s bandwidth (and this one’s) a single
+# request can spend – this is a public, unauthenticated proxy, so nothing
+# else stops a request for an arbitrarily large file. Applied to both the
+# raw bytes read off the wire and, separately, the decompressed size (a
+# small gzip payload can still expand into a much larger one)
+MAX_CONTENT_LENGTH = 10 * 1024 * 1024
 
 
 # An XML document’s declared encoding, which must be within its very first
@@ -210,10 +219,19 @@ def get_url(url, request_headers):
             # Remove suffix like `-gzip` from etag to make it work
             headers['ETag'] = re.sub('-[^"]+("?)$', '\\1', etag)
 
+        raw_content = response.read(MAX_CONTENT_LENGTH + 1)
+
+        if len(raw_content) > MAX_CONTENT_LENGTH:
+            raise ForbiddenUrl(502, 'Response too large to proxy')
+
         if response.headers.get('Content-Encoding') == 'gzip':
-            content = decompress(response.read())
+            decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            content = decompressor.decompress(raw_content, MAX_CONTENT_LENGTH)
+
+            if decompressor.unconsumed_tail:
+                raise ForbiddenUrl(502, 'Response too large to proxy')
         else:
-            content = response.read()
+            content = raw_content
 
     except HTTPError as error:
         status = headers['X-Roxy-Status'] = error.getcode()
