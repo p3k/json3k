@@ -25,6 +25,26 @@ dictConfig({
 app = Flask(__name__)
 
 
+# Both services are meant to be called from any page embedding a box, so
+# every response needs this – including Flask’s own automatic OPTIONS
+# response to a preflight request, which neither roxy() nor ferris() ever
+# get to run for (Flask answers it before the view function is called),
+# and which a browser sends once a request stops being CORS-simple (e.g.
+# past a certain Accept header length). Centralized here, rather than
+# set inside each response path, so an easy-to-miss one (like ferris()’s
+# own add-a-hit response, which never set this at all) can’t happen again.
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+
+    if request.method == 'OPTIONS':
+        response.headers['Access-Control-Allow-Headers'] = \
+            request.headers.get('Access-Control-Request-Headers', '*')
+        response.headers['Access-Control-Allow-Methods'] = 'GET'
+
+    return response
+
+
 @app.route('/')
 def welcome():
     return make_response("JSON3k services ready.")
