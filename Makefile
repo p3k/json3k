@@ -8,8 +8,11 @@ objects = entrecote.py ferris.py main.py roxy.py wsgi.py
 .venv:
 	python3 -m venv .venv
 
+# A deployed checkout (rsynced to the server, .git deliberately excluded)
+# has no repo to configure at all – silently do nothing there rather than
+# fail, since install runs on both a real clone and a deployed copy
 git-hooks:
-	git config core.hooksPath .git-hooks
+	@if [ -d .git ]; then git config core.hooksPath .git-hooks; fi
 
 install: .entrecote .venv git-hooks requirements.txt
 	.venv/bin/pip install `grep --invert-match mod-wsgi-standalone requirements.txt`
